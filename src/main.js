@@ -148,23 +148,30 @@ function tick() {
   const eff = EFFECTS[state.effect];
   let drewSomething = false;
 
+  // Only run the detector when a new video frame has arrived
   if (cameraReady && video.currentTime !== state.lastVideoTime) {
     state.lastVideoTime = video.currentTime;
     let result;
     if (eff.detector === "pose") {
       result = poseLandmarker.detectForVideo(video, now);
-      // If detector returned nothing, fall back to last known result for a few frames
       if (result.landmarks?.length) {
         state.lastPoseResult = { ...result, landmarks: poseSmoother.smooth(result.landmarks) };
       }
-      drewSomething = eff.draw(ctx, drawingUtils, state.lastPoseResult ?? result, mpClasses);
     } else {
       result = faceLandmarker.detectForVideo(video, now);
       if (result.faceLandmarks?.length) {
         state.lastFaceResult = { ...result, faceLandmarks: faceSmoother.smooth(result.faceLandmarks) };
       }
-      drewSomething = eff.draw(ctx, drawingUtils, state.lastFaceResult ?? result, mpClasses);
     }
+  }
+
+  // Always draw the last known result — even on rAF ticks where the video
+  // frame didn't advance yet. This is what prevents the mesh from going blank
+  // for one frame whenever the detector or video pipeline hiccups.
+  if (eff.detector === "pose" && state.lastPoseResult) {
+    drewSomething = eff.draw(ctx, drawingUtils, state.lastPoseResult, mpClasses);
+  } else if (eff.detector === "face" && state.lastFaceResult) {
+    drewSomething = eff.draw(ctx, drawingUtils, state.lastFaceResult, mpClasses);
   }
   ctx.restore();
 
