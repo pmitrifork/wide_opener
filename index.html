@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Human FX</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <!-- camera feed (hidden; composited into the canvas) -->
+  <video id="cam" playsinline muted></video>
+
+  <!-- the only thing the audience sees -->
+  <canvas id="stage"></canvas>
+
+  <!-- idle prompt shown when nobody is in frame -->
+  <div id="idle">
+    <div class="big">STEP INTO FRAME</div>
+    <div class="small">motion capture active</div>
+  </div>
+
+  <!-- HUD (toggle with H) -->
+  <div id="hud">
+    <span id="eff">—</span>
+    <span id="fps">— fps</span>
+    <span id="status">starting…</span>
+    <span id="keys">E effect · B background · M mirror · F fullscreen · H hide</span>
+  </div>
+
+  <!-- Touch controls (visible on touch devices, hidden on pointer devices) -->
+  <div id="touch-controls">
+    <button data-action="e" title="Effect">FX</button>
+    <button data-action="b" title="Background">BG</button>
+    <button data-action="m" title="Mirror">⇄</button>
+    <button data-action="c" title="Flip camera">📷</button>
+    <button data-action="f" title="Fullscreen">⛶</button>
+    <button data-action="h" title="HUD">HUD</button>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

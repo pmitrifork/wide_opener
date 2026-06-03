@@ -1,0 +1,129 @@
+/* ===========================================================================
+   Dark "motion-capture studio" look — built to read on a big screen in a
+   dim room. Canvas is the star; everything else is quiet HUD.
+   =========================================================================== */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap");
+
+:root {
+  --bg:     #05070a;
+  --accent: #39ffd0;
+  --hud:    rgba(255, 255, 255, 0.55);
+  --font:   "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: #fff;
+  font-family: var(--font);
+  overflow: hidden;
+  cursor: none;                 /* kiosk: hide the pointer */
+}
+
+#cam { display: none; }          /* camera feed is drawn into the canvas */
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;            /* fill the screen, crop overflow */
+  background: var(--bg);
+}
+
+/* subtle vignette so the bright effects pop in the centre */
+body::after {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+              transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+
+/* ---- HUD ---------------------------------------------------------------- */
+#hud {
+  position: fixed;
+  left: 28px; bottom: 24px;
+  display: flex; gap: 22px; align-items: baseline;
+  font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--hud);
+  opacity: 0; transition: opacity 0.6s ease;
+  text-shadow: 0 0 12px rgba(0,0,0,0.8);
+  z-index: 10;
+}
+#hud.ready { opacity: 1; }
+#hud.hidden { opacity: 0 !important; }
+
+#eff { color: var(--accent); font-weight: 700; }
+#fps { color: var(--hud); }
+#status { color: #ff7b7b; }
+#keys { color: rgba(255,255,255,0.28); margin-left: auto; }
+
+/* ---- Idle overlay ------------------------------------------------------- */
+#idle {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column; gap: 14px;
+  align-items: center; justify-content: center;
+  text-align: center;
+  opacity: 0; transition: opacity 0.8s ease;
+  pointer-events: none;
+  z-index: 9;
+}
+#idle.show { opacity: 1; }
+#idle .big {
+  font-size: clamp(28px, 6vw, 76px); font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff; text-shadow: 0 0 40px rgba(57,255,208,0.45);
+}
+#idle .small {
+  font-size: 14px; letter-spacing: 0.3em; text-transform: uppercase;
+  color: var(--accent);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+/* ---- Touch controls -------------------------------------------------------- */
+#touch-controls {
+  position: fixed;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  z-index: 20;
+  /* show only on touch-primary devices */
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  #touch-controls { display: flex; }
+  #keys { display: none; }           /* keyboard hint irrelevant on mobile */
+  html, body { cursor: auto; }       /* restore cursor on touch devices */
+}
+
+#touch-controls button {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(5, 7, 10, 0.72);
+  border: 1px solid rgba(57, 255, 208, 0.35);
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-width: 52px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#touch-controls button:active {
+  background: rgba(57, 255, 208, 0.18);
+  border-color: var(--accent);
+}

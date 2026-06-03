@@ -1,0 +1,3 @@
+# Vendored ML models and WASM runtime — downloaded via download-assets scripts
+vendor/**
+!vendor/.gitkeep

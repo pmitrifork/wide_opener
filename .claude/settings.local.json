@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\dk8PrMiM\\\\Dev\\\\hackerdays\\\\human-fx-demo\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(ConvertTo-Json)"
+    ]
+  }
+}
