@@ -9,6 +9,23 @@ const JOINT_COLOR    = "#ffffff";
 const MESH_COLOR      = "rgba(255, 255, 255, 0.55)";
 const MESH_EYE_COLOR  = "rgba(57, 255, 208, 0.9)";
 
+// --- Voronoi "Wide Open" shell --------------------------------------------
+const VORONOI_BASE   = "#cfc6b4";  // shadowed cream (strut underside)
+const VORONOI_TOP    = "#f7f2e7";  // bright cream (strut highlight)
+const VORONOI_STEP   = 4;          // sample every Nth landmark → bigger cells (higher = chunkier)
+const VORONOI_WIDTH  = 9;          // strut thickness in px (scaled by face size below)
+
+// d3-delaunay is loaded lazily from CDN as an ES module so the other effects
+// keep working even if it's unavailable (e.g. fully offline mode).
+let Delaunay = null;
+let delaunayLoading = null;
+function ensureDelaunay() {
+  if (Delaunay || delaunayLoading) return;
+  delaunayLoading = import("https://cdn.jsdelivr.net/npm/d3-delaunay@6/+esm")
+    .then((m) => { Delaunay = m.Delaunay; })
+    .catch((e) => { console.error("d3-delaunay load failed:", e); });
+}
+
 // PoseLandmarker indices 0–10 are face points (nose, eyes, ears, mouth).
 // Body starts at index 11 (left shoulder).
 const BODY_START = 11;
@@ -118,10 +135,88 @@ export function drawFullBody(ctx, drawingUtils, { pose, face }, deps) {
 }
 
 // ---------------------------------------------------------------------------
+//  VORONOI  — "Wide Open" style 3D-printed organic shell over the face.
+//  Builds a Voronoi diagram from a decimated subset of the face landmarks,
+//  clips it to the face hull, and renders thick rounded cream struts with a
+//  drop-shadow + centre-highlight to fake a 3D-printed tube cross-section.
+// ---------------------------------------------------------------------------
+export function drawVoronoi(ctx, drawingUtils, result, deps) {
+  if (!result?.faceLandmarks?.length) return false;
+
+  // While the library streams in, fall back to the plain mesh so it's not blank
+  if (!Delaunay) {
+    ensureDelaunay();
+    return drawMesh(ctx, drawingUtils, result, deps);
+  }
+
+  const w = ctx.canvas.width, h = ctx.canvas.height;
+  const lms = result.faceLandmarks[0];
+
+  // Decimate the 468 points to pixel coords — fewer points = larger cells.
+  // MediaPipe's index ordering is non-uniform spatially, so striding gives a
+  // pleasantly irregular (organic) sample.
+  const pts = [];
+  for (let i = 0; i < lms.length; i += VORONOI_STEP) {
+    pts.push([lms[i].x * w, lms[i].y * h]);
+  }
+  if (pts.length < 3) return false;
+
+  const delaunay = Delaunay.from(pts);
+  const voronoi  = delaunay.voronoi([0, 0, w, h]);
+
+  // Scale strut width to the face size so it looks right at any distance
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of pts) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  const faceSpan = Math.max(maxX - minX, maxY - minY);
+  const strutW   = Math.max(2, (VORONOI_WIDTH / 400) * faceSpan);
+
+  ctx.save();
+
+  // Clip to the convex hull of the face points so cells hug the face shape
+  const hull = delaunay.hull;
+  ctx.beginPath();
+  for (let i = 0; i < hull.length; i++) {
+    const [x, y] = pts[hull[i]];
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.closePath();
+  ctx.clip();
+
+  // One path containing every cell edge (each interior edge drawn once)
+  ctx.beginPath();
+  voronoi.render(ctx);
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Base pass — wide, shadowed cream, with a drop-shadow for printed depth
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = strutW * 0.8;
+  ctx.shadowOffsetX = strutW * 0.25;
+  ctx.shadowOffsetY = strutW * 0.35;
+  ctx.strokeStyle = VORONOI_BASE;
+  ctx.lineWidth = strutW;
+  ctx.stroke();
+
+  // Highlight pass — narrower bright cream down the centre → tube roundness
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = VORONOI_TOP;
+  ctx.lineWidth = strutW * 0.45;
+  ctx.stroke();
+
+  ctx.restore();
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 //  Registry. Each effect declares which detector it needs ('pose' | 'face' | 'both').
 // ---------------------------------------------------------------------------
 export const EFFECTS = {
   skeleton: { label: "SKELETON",   detector: "pose", draw: drawSkeleton },
   mesh:     { label: "FACE MESH",  detector: "face", draw: drawMesh     },
   fullbody: { label: "FULL BODY",  detector: "both", draw: drawFullBody },
+  voronoi:  { label: "VORONOI",    detector: "face", draw: drawVoronoi  },
 };
