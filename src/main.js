@@ -40,8 +40,8 @@ let poseLandmarker = null;
 let faceLandmarker = null;
 let mpClasses = null; // { PoseLandmarker, FaceLandmarker, DrawingUtils }
 let drawingUtils = null;
-const poseSmoother = new Smoother(CONFIG.smoothAlpha);
-const faceSmoother = new Smoother(CONFIG.smoothAlpha);
+const poseSmoother = new Smoother(CONFIG.smooth);
+const faceSmoother = new Smoother(CONFIG.smooth);
 
 function setStatus(msg) { statusEl.textContent = msg; }
 

@@ -41,9 +41,11 @@ export const CONFIG = {
   showVideo:   true,        // true = draw camera behind effect; false = effect on pure black
   mirror:      false,       // selfie flip (left/right). Toggle live with 'M'
 
-  // Landmark smoothing — exponential moving average blend weight for new frames.
-  // 1.0 = no smoothing (raw), 0.0 = frozen. Try 0.4–0.6 for a smooth look.
-  smoothAlpha: 0.5,
+  // Landmark smoothing — adaptive (speed-dependent) EMA.
+  //   minAlpha  : blend weight when nearly still (lower = kills jitter harder)
+  //   maxAlpha  : blend weight when moving fast  (higher = more responsive)
+  //   motionRef : movement (normalised 0–1 units) at which maxAlpha is reached
+  smooth: { minAlpha: 0.12, maxAlpha: 0.85, motionRef: 0.03 },
 
   // Idle screen appears after this many consecutive frames with nobody detected
   idleAfterFrames: 25,
