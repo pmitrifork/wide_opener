@@ -50,6 +50,8 @@ afroImg.src = "./drawAfro.png";
 const DEVIL_SCALE = 1.7;
 const DEVIL_CY    = 0.12;
 const DEVIL_CROP  = 0.52;
+const DEVIL_TILT  = 45;     // each horn splayed outward by this many degrees
+const DEVIL_GAP   = 0.10;   // horizontal gap of each horn base from centre (× face width)
 const devilImg = new Image();
 let devilImgReady = false;
 devilImg.onload = () => { devilImgReady = devilImg.naturalWidth > 0; };
@@ -473,14 +475,33 @@ export function drawDevil(ctx, drawingUtils, result, deps) {
     // Source crop: top DEVIL_CROP of the image (horns only, eyes excluded)
     const sw = devilImg.naturalWidth;
     const sh = devilImg.naturalHeight * DEVIL_CROP;
+    const hw = sw / 2;                 // half-width source (one horn)
     const iw = fw * DEVIL_SCALE;
     const ih = iw * (sh / sw);
+    const dhw = iw / 2;                // destination half-width (one horn)
+
+    const baseY = fh * DEVIL_CY;       // where horn bases sit, below forehead
+    const gap = fw * DEVIL_GAP;        // each base offset from centre
+    const tilt = (DEVIL_TILT * Math.PI) / 180;
 
     ctx.save();
     ctx.translate(fx, fy);   // origin at forehead
     ctx.rotate(angle);
-    // Centre horizontally; horn base sits just below the forehead anchor
-    ctx.drawImage(devilImg, 0, 0, sw, sh, -iw / 2, fh * DEVIL_CY - ih, iw, ih);
+
+    // Left horn — pivot at its inner-bottom corner, splay outward (CCW)
+    ctx.save();
+    ctx.translate(-gap, baseY);
+    ctx.rotate(-tilt);
+    ctx.drawImage(devilImg, 0, 0, hw, sh, -dhw, -ih, dhw, ih);
+    ctx.restore();
+
+    // Right horn — pivot at its inner-bottom corner, splay outward (CW)
+    ctx.save();
+    ctx.translate(gap, baseY);
+    ctx.rotate(tilt);
+    ctx.drawImage(devilImg, hw, 0, hw, sh, 0, -ih, dhw, ih);
+    ctx.restore();
+
     ctx.restore();
   }
   return true;
