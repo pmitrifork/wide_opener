@@ -14,7 +14,7 @@ const VORONOI_BASE   = "#cfc6b4";  // shadowed cream (strut underside)
 const VORONOI_TOP    = "#f7f2e7";  // bright cream (strut highlight)
 const VORONOI_STEP   = 4;          // sample every Nth landmark → bigger cells (higher = chunkier)
 const VORONOI_WIDTH  = 9;          // strut thickness in px (scaled by face size below)
-const VORONOI_EXPAND = 1.18;       // grow the clip region outward so cells fill the whole face
+const VORONOI_EXPAND = 1.06;       // grow the clip region outward so cells fill the whole face
 
 // d3-delaunay is loaded lazily from CDN as an ES module so the other effects
 // keep working even if it's unavailable (e.g. fully offline mode).
