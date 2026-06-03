@@ -30,6 +30,18 @@ const AFRO_HOLE_H  = 0.52;   // face opening half-height (× face height)
 const AFRO_HOLE_CY = 0.10;   // face opening vertical nudge down (× face height)
 const AFRO_JAW     = 0.46;   // clip the hair off below this line (× face height)
 
+// Optional real afro image overlay. Drop a transparent PNG at ./afro.png and
+// it will be used instead of the procedural hair (falls back if absent).
+//   AFRO_IMG_SCALE : image width as a multiple of detected face width
+//   AFRO_IMG_CY    : vertical centre offset from face centre (× face height;
+//                    negative = up). Tune so the face sits in the wig opening.
+const AFRO_IMG_SCALE = 2.6;
+const AFRO_IMG_CY    = -0.45;
+const afroImg = new Image();
+let afroImgReady = false;
+afroImg.onload = () => { afroImgReady = afroImg.naturalWidth > 0; };
+afroImg.src = "./afro.png";
+
 // MediaPipe FaceLandmarker face-oval ring (ordered: top centre, around to chin
 // and back up). Used to trace the real head outline.
 const FACE_OVAL_IDX = [
@@ -322,6 +334,18 @@ export function drawAfro(ctx, drawingUtils, result, deps) {
     for (const [x, y] of local) { maxX = Math.max(maxX, Math.abs(x)); maxY = Math.max(maxY, Math.abs(y)); }
     const fw = maxX * 2, fh = maxY * 2;
     if (!(fw > 0) || !(fh > 0)) continue;
+
+    // --- Real image overlay (preferred when ./afro.png is available) ---
+    if (afroImgReady) {
+      const iw = fw * AFRO_IMG_SCALE;
+      const ih = iw * (afroImg.naturalHeight / afroImg.naturalWidth);
+      ctx.save();
+      ctx.translate(faceCX, faceCY);
+      ctx.rotate(angle);
+      ctx.drawImage(afroImg, -iw / 2, fh * AFRO_IMG_CY - ih / 2, iw, ih);
+      ctx.restore();
+      continue;
+    }
 
     // Expanded hair outline: push each oval vertex outward from centre, more
     // at the top (taller crown), plus a stable frizz wobble.
