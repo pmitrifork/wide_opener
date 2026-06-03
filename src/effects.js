@@ -57,6 +57,18 @@ let devilImgReady = false;
 devilImg.onload = () => { devilImgReady = devilImg.naturalWidth > 0; };
 devilImg.src = "./devil.png";
 
+// --- Halo / aureola (procedural golden glowing ring) -----------------------
+const HALO_RX    = 0.62;   // ring radius (× face width)
+const HALO_FLAT  = 0.30;   // vertical squash for perspective (ry / rx)
+const HALO_CY    = -0.85;  // height above the forehead (× face height; negative = up)
+const HALO_GLOW  = "rgba(255, 196, 64, 0.9)";  // outer glow colour
+const HALO_GOLD  = "#ffcb47";                  // ring gold
+const HALO_CORE  = "#fff6d6";                  // bright core
+// Stable sparkle positions around the ring (angle, radial jitter, size)
+const HALO_SPARKLES = Array.from({ length: 14 }, () => [
+  Math.random() * Math.PI * 2, 0.85 + Math.random() * 0.3, 0.4 + Math.random() * 0.8,
+]);
+
 // MediaPipe FaceLandmarker face-oval ring (ordered: top centre, around to chin
 // and back up). Used to trace the real head outline.
 const FACE_OVAL_IDX = [
@@ -508,6 +520,76 @@ export function drawDevil(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
+//  HALO  — glowing golden aureola floating above each detected head.
+// ---------------------------------------------------------------------------
+export function drawHalo(ctx, drawingUtils, result, deps) {
+  if (!result?.faceLandmarks?.length) return false;
+  const w = ctx.canvas.width, h = ctx.canvas.height;
+  const px = (lms, i) => [lms[i].x * w, lms[i].y * h];
+
+  for (const lms of result.faceLandmarks) {
+    const [rx, ry] = px(lms, 234);   // right cheek edge
+    const [lx, ly] = px(lms, 454);   // left cheek edge
+    const [fx, fy] = px(lms, 10);    // forehead top (mid)
+    const [chx, chy] = px(lms, 152); // chin bottom
+    const [e1x, e1y] = px(lms, 33);  // right eye outer corner
+    const [e2x, e2y] = px(lms, 263); // left eye outer corner
+
+    const fw = Math.hypot(lx - rx, ly - ry);
+    const fh = Math.hypot(chx - fx, chy - fy);
+    if (!(fw > 0)) continue;
+    const angle = Math.atan2(e2y - e1y, e2x - e1x);
+
+    const rxr = fw * HALO_RX;
+    const ryr = rxr * HALO_FLAT;
+    const cyH = fh * HALO_CY;
+
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.rotate(angle);
+    ctx.lineCap = "round";
+
+    // Soft outer glow
+    ctx.shadowColor = HALO_GLOW;
+    ctx.shadowBlur = rxr * 0.6;
+    ctx.strokeStyle = HALO_GOLD;
+    ctx.lineWidth = ryr * 0.55;
+    ctx.beginPath();
+    ctx.ellipse(0, cyH, rxr, ryr, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Mid gold pass (keeps the glow but tightens the ring)
+    ctx.shadowBlur = rxr * 0.25;
+    ctx.lineWidth = ryr * 0.32;
+    ctx.beginPath();
+    ctx.ellipse(0, cyH, rxr, ryr, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Bright core line
+    ctx.shadowBlur = rxr * 0.12;
+    ctx.strokeStyle = HALO_CORE;
+    ctx.lineWidth = Math.max(1, ryr * 0.14);
+    ctx.beginPath();
+    ctx.ellipse(0, cyH, rxr, ryr, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Sparkles around the ring
+    ctx.fillStyle = HALO_CORE;
+    for (const [a, jr, sz] of HALO_SPARKLES) {
+      const sx = Math.cos(a) * rxr * jr;
+      const sy = cyH + Math.sin(a) * ryr * jr;
+      ctx.shadowBlur = rxr * 0.2;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sz * (ryr * 0.18), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 //  Registry. Each effect declares which detector it needs ('pose' | 'face' | 'both').
 // ---------------------------------------------------------------------------
 export const EFFECTS = {
@@ -517,4 +599,5 @@ export const EFFECTS = {
   voronoi:  { label: "VORONOI",    detector: "face", draw: drawVoronoi  },
   afro:     { label: "AFRO",       detector: "face", draw: drawAfro, keepFace: true },
   devil:    { label: "DEVIL",      detector: "face", draw: drawDevil, keepFace: true },
+  halo:     { label: "HALO",       detector: "face", draw: drawHalo,  keepFace: true },
 };
