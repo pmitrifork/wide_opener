@@ -184,14 +184,20 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
   for (const idx of hull) { cx += pts[idx][0]; cy += pts[idx][1]; }
   cx /= hull.length; cy /= hull.length;
 
-  ctx.beginPath();
-  for (let i = 0; i < hull.length; i++) {
-    const [x, y] = pts[hull[i]];
-    const ex = cx + (x - cx) * VORONOI_EXPAND;
-    const ey = cy + (y - cy) * VORONOI_EXPAND;
-    i ? ctx.lineTo(ex, ey) : ctx.moveTo(ex, ey);
-  }
-  ctx.closePath();
+  // Build the expanded boundary polygon once; reused for both clip and outline
+  const boundary = hull.map((idx) => {
+    const [x, y] = pts[idx];
+    return [cx + (x - cx) * VORONOI_EXPAND, cy + (y - cy) * VORONOI_EXPAND];
+  });
+  const traceBoundary = () => {
+    ctx.beginPath();
+    boundary.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+  };
+
+  // --- interior cells, clipped to the boundary ---
+  ctx.save();
+  traceBoundary();
   ctx.clip();
 
   // One path containing every cell edge (each interior edge drawn once)
@@ -214,6 +220,27 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
   ctx.shadowColor = "transparent";
   ctx.strokeStyle = VORONOI_TOP;
   ctx.lineWidth = strutW * 0.45;
+  ctx.stroke();
+
+  ctx.restore(); // drop the clip so the full boundary strut width shows
+
+  // --- boundary outline — a slightly thicker rounded frame around the shell ---
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  traceBoundary();
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = strutW;
+  ctx.shadowOffsetX = strutW * 0.25;
+  ctx.shadowOffsetY = strutW * 0.35;
+  ctx.strokeStyle = VORONOI_BASE;
+  ctx.lineWidth = strutW * 1.35;
+  ctx.stroke();
+
+  traceBoundary();
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = VORONOI_TOP;
+  ctx.lineWidth = strutW * 0.6;
   ctx.stroke();
 
   ctx.restore();
