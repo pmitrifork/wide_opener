@@ -51,7 +51,7 @@ const DEVIL_SCALE = 1.7;
 const DEVIL_CY    = -0.28;  // horn base position relative to forehead (× face height; negative = higher)
 const DEVIL_CROP  = 0.52;
 const DEVIL_TILT  = 45;     // each horn splayed outward by this many degrees
-const DEVIL_GAP   = 0.10;   // horizontal gap of each horn base from centre (× face width)
+const DEVIL_GAP   = 0.02;   // horizontal gap of each horn base from centre (× face width)
 const devilImg = new Image();
 let devilImgReady = false;
 devilImg.onload = () => { devilImgReady = devilImg.naturalWidth > 0; };
