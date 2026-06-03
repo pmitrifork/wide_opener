@@ -48,7 +48,7 @@ afroImg.src = "./drawAfro.png";
 //   DEVIL_CY    : horn base position relative to forehead (× face height, +down)
 //   DEVIL_CROP  : fraction of source height to keep (top = horns, excludes eyes)
 const DEVIL_SCALE = 1.7;
-const DEVIL_CY    = -0.45;  // horn base position relative to forehead (× face height; negative = higher)
+const DEVIL_CY    = -0.28;  // horn base position relative to forehead (× face height; negative = higher)
 const DEVIL_CROP  = 0.52;
 const DEVIL_TILT  = 45;     // each horn splayed outward by this many degrees
 const DEVIL_GAP   = 0.10;   // horizontal gap of each horn base from centre (× face width)
