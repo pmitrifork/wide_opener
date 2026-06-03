@@ -17,19 +17,24 @@ const VORONOI_WIDTH  = 9;          // strut thickness in px (scaled by face size
 const VORONOI_EXPAND = 1.06;       // grow the clip region outward so cells fill the whole face
 
 // --- Afro wig overlay ------------------------------------------------------
-const AFRO_COLOR   = "#17120d";              // near-black brown
-const AFRO_HILIGHT = "rgba(120, 92, 60, 0.28)"; // curl sheen
-const AFRO_SIZE    = 0.95;   // outer hair radius as a multiple of face width
-const AFRO_WOBBLE  = 0.10;   // bumpiness of the outer edge (0 = smooth circle)
-const AFRO_BUMPS   = 9;      // number of edge lobes
-const AFRO_HOLE_W  = 0.52;   // face hole half-width  (× face width)
-const AFRO_HOLE_H  = 0.55;   // face hole half-height (× face height)
+const AFRO_COLOR   = "#1c1611";   // base hair brown-black
+const AFRO_DARK    = "rgba(0,0,0,0.5)";          // curl shadows
+const AFRO_LITE    = "rgba(150,120,86,0.45)";    // curl highlights
+const AFRO_R       = 1.18;   // hair dome radius      (× face width)
+const AFRO_LIFT    = 0.34;   // dome centre above face centre (× face height)
+const AFRO_WOBBLE  = 0.07;   // fuzziness of the outer edge
+const AFRO_BUMPS   = 13;     // edge lobes
+const AFRO_HOLE_W  = 0.50;   // face opening half-width  (× face width)
+const AFRO_HOLE_H  = 0.52;   // face opening half-height (× face height)
+const AFRO_HOLE_CY = 0.06;   // face opening vertical nudge (× face height)
+const AFRO_JAW     = 0.52;   // clip the hair off below this line (× face height)
 
-// Stable curl-texture points in a unit disk (seeded once so they don't shimmer)
-const AFRO_CURLS = Array.from({ length: 70 }, () => {
+// Stable curl-texture dabs in a unit disk (seeded once so they don't shimmer).
+// Each: [x, y, tone] where tone < 0.5 → shadow dab, else highlight dab.
+const AFRO_CURLS = Array.from({ length: 260 }, () => {
   const a = Math.random() * Math.PI * 2;
   const r = Math.sqrt(Math.random()); // uniform over disk area
-  return [Math.cos(a) * r, Math.sin(a) * r];
+  return [Math.cos(a) * r, Math.sin(a) * r, Math.random()];
 });
 
 // d3-delaunay is loaded lazily from CDN as an ES module so the other effects
@@ -291,43 +296,51 @@ export function drawAfro(ctx, drawingUtils, result, deps) {
     const faceCY = (fy + chy) / 2;             // face centre
     const angle  = Math.atan2(e2y - e1y, e2x - e1x); // head tilt
 
-    const Router = fw * AFRO_SIZE;
-    const outerCY = -fw * 0.12;                // hair sits a bit above face centre
-    const holeRX = fw * AFRO_HOLE_W;
-    const holeRY = fh * AFRO_HOLE_H;
-    const holeCY = fh * 0.06;                  // hole nudged down to leave hairline
+    const Router  = fw * AFRO_R;
+    const outerCY = -fh * AFRO_LIFT;           // dome centred above the face
+    const holeRX  = fw * AFRO_HOLE_W;
+    const holeRY  = fh * AFRO_HOLE_H;
+    const holeCY  = fh * AFRO_HOLE_CY;
+    const jawY    = fh * AFRO_JAW;
 
     ctx.save();
     ctx.translate(faceCX, faceCY);
     ctx.rotate(angle);
 
-    // Build the hair as an outer bumpy disk with a face-shaped hole punched
-    // out, so the face shows through and the hair frames it all around.
-    const outer = new Path2D();
-    const segs = 80;
+    // Hair = a big fuzzy dome (centred above the head) with the face punched
+    // out, then clipped off below the jaw so it doesn't wrap the neck/chin —
+    // leaving a rounded mass that sits on top and frames down the sides.
+    const dome = new Path2D();
+    const segs = 96;
     for (let i = 0; i <= segs; i++) {
       const a = (i / segs) * Math.PI * 2;
       const r = Router * (1 + AFRO_WOBBLE * Math.cos(a * AFRO_BUMPS));
       const x = Math.cos(a) * r;
       const y = outerCY + Math.sin(a) * r;
-      i ? outer.lineTo(x, y) : outer.moveTo(x, y);
+      i ? dome.lineTo(x, y) : dome.moveTo(x, y);
     }
-    outer.closePath();
+    dome.closePath();
     const hole = new Path2D();
     hole.ellipse(0, holeCY, holeRX, holeRY, 0, 0, Math.PI * 2);
-    outer.addPath(hole); // separate subpath → evenodd makes it a hole
+    dome.addPath(hole); // separate subpath → evenodd makes it a hole
 
+    // Clip away everything below the jaw line (open bottom, bare neck)
+    ctx.beginPath();
+    ctx.rect(-Router * 1.5, outerCY - Router * 1.5, Router * 3, (jawY) - (outerCY - Router * 1.5));
+    ctx.clip();
+
+    // Base hair mass with a soft drop-shadow for depth
     ctx.shadowColor = "rgba(0,0,0,0.40)";
-    ctx.shadowBlur = Router * 0.15;
+    ctx.shadowBlur = Router * 0.12;
     ctx.fillStyle = AFRO_COLOR;
-    ctx.fill(outer, "evenodd");
+    ctx.fill(dome, "evenodd");
     ctx.shadowColor = "transparent";
 
-    // Curl texture — lighter dabs, clipped to the hair ring (hole excluded)
-    ctx.clip(outer, "evenodd");
-    ctx.fillStyle = AFRO_HILIGHT;
-    const curlR = Router * 0.11;
-    for (const [ux, uy] of AFRO_CURLS) {
+    // Curl texture — many small shadow/highlight dabs, clipped to the hair
+    ctx.clip(dome, "evenodd");
+    const curlR = Router * 0.05;
+    for (const [ux, uy, tone] of AFRO_CURLS) {
+      ctx.fillStyle = tone < 0.5 ? AFRO_DARK : AFRO_LITE;
       ctx.beginPath();
       ctx.arc(ux * Router, outerCY + uy * Router, curlR, 0, Math.PI * 2);
       ctx.fill();
