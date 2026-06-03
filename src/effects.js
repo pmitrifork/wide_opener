@@ -16,6 +16,20 @@ const VORONOI_STEP   = 4;          // sample every Nth landmark → bigger cells
 const VORONOI_WIDTH  = 9;          // strut thickness in px (scaled by face size below)
 const VORONOI_EXPAND = 1.06;       // grow the clip region outward so cells fill the whole face
 
+// --- Afro wig overlay ------------------------------------------------------
+const AFRO_COLOR   = "#17120d";              // near-black brown
+const AFRO_HILIGHT = "rgba(120, 92, 60, 0.30)"; // curl sheen
+const AFRO_SIZE    = 1.15;   // base radius as a multiple of face width
+const AFRO_LIFT    = 0.78;   // how far the mass sits above the forehead (× base radius)
+const AFRO_BUMPS   = 20;     // edge puffs → fluffy silhouette
+
+// Stable curl-texture points in a unit disk (seeded once so they don't shimmer)
+const AFRO_CURLS = Array.from({ length: 60 }, () => {
+  const a = Math.random() * Math.PI * 2;
+  const r = Math.sqrt(Math.random()); // uniform over disk area
+  return [Math.cos(a) * r, Math.sin(a) * r];
+});
+
 // d3-delaunay is loaded lazily from CDN as an ES module so the other effects
 // keep working even if it's unavailable (e.g. fully offline mode).
 let Delaunay = null;
@@ -250,6 +264,73 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
+//  AFRO  — procedural afro wig anchored to each detected head.
+//  Sized to the face width, tilted with head rotation, drawn as a fluffy
+//  bumpy silhouette with stable curl texture. Works on multiple heads.
+// ---------------------------------------------------------------------------
+export function drawAfro(ctx, drawingUtils, result, deps) {
+  if (!result?.faceLandmarks?.length) return false;
+  const w = ctx.canvas.width, h = ctx.canvas.height;
+  const px = (lms, i) => [lms[i].x * w, lms[i].y * h];
+
+  for (const lms of result.faceLandmarks) {
+    const [rx, ry] = px(lms, 234);  // right cheek edge
+    const [lx, ly] = px(lms, 454);  // left cheek edge
+    const [fx, fy] = px(lms, 10);   // forehead top (mid)
+    const [e1x, e1y] = px(lms, 33);  // right eye outer corner
+    const [e2x, e2y] = px(lms, 263); // left eye outer corner
+
+    const fw = Math.hypot(lx - rx, ly - ry);
+    if (!(fw > 0)) continue;
+
+    const baseR = fw * AFRO_SIZE;
+    const lift  = baseR * AFRO_LIFT;
+    const bumpR = baseR * 0.5;
+
+    const cx = (rx + lx) / 2;       // horizontal centre of the face
+    const cy = fy;                  // anchor at forehead top
+    const angle = Math.atan2(e2y - e1y, e2x - e1x); // head tilt
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+
+    // Fluffy silhouette: one big disk + a ring of overlapping puffs.
+    // Centre is lifted up so the mass crowns the head and clears the eyes.
+    ctx.shadowColor = "rgba(0,0,0,0.40)";
+    ctx.shadowBlur = baseR * 0.22;
+    ctx.fillStyle = AFRO_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(baseR, -lift);
+    ctx.arc(0, -lift, baseR, 0, Math.PI * 2);
+    for (let i = 0; i < AFRO_BUMPS; i++) {
+      const a = (i / AFRO_BUMPS) * Math.PI * 2;
+      const bx = Math.cos(a) * baseR;
+      const by = -lift + Math.sin(a) * baseR;
+      ctx.moveTo(bx + bumpR, by);
+      ctx.arc(bx, by, bumpR, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+
+    // Curl texture — lighter dabs, clipped to the main disk so they stay inside
+    ctx.beginPath();
+    ctx.arc(0, -lift, baseR, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = AFRO_HILIGHT;
+    const curlR = bumpR * 0.38;
+    for (const [ux, uy] of AFRO_CURLS) {
+      ctx.beginPath();
+      ctx.arc(ux * baseR, -lift + uy * baseR, curlR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 //  Registry. Each effect declares which detector it needs ('pose' | 'face' | 'both').
 // ---------------------------------------------------------------------------
 export const EFFECTS = {
@@ -257,4 +338,5 @@ export const EFFECTS = {
   mesh:     { label: "FACE MESH",  detector: "face", draw: drawMesh     },
   fullbody: { label: "FULL BODY",  detector: "both", draw: drawFullBody },
   voronoi:  { label: "VORONOI",    detector: "face", draw: drawVoronoi  },
+  afro:     { label: "AFRO",       detector: "face", draw: drawAfro     },
 };
