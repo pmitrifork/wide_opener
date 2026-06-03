@@ -18,13 +18,15 @@ const VORONOI_EXPAND = 1.06;       // grow the clip region outward so cells fill
 
 // --- Afro wig overlay ------------------------------------------------------
 const AFRO_COLOR   = "#17120d";              // near-black brown
-const AFRO_HILIGHT = "rgba(120, 92, 60, 0.30)"; // curl sheen
-const AFRO_SIZE    = 1.15;   // base radius as a multiple of face width
-const AFRO_LIFT    = 0.78;   // how far the mass sits above the forehead (× base radius)
-const AFRO_BUMPS   = 20;     // edge puffs → fluffy silhouette
+const AFRO_HILIGHT = "rgba(120, 92, 60, 0.28)"; // curl sheen
+const AFRO_SIZE    = 0.95;   // outer hair radius as a multiple of face width
+const AFRO_WOBBLE  = 0.10;   // bumpiness of the outer edge (0 = smooth circle)
+const AFRO_BUMPS   = 9;      // number of edge lobes
+const AFRO_HOLE_W  = 0.52;   // face hole half-width  (× face width)
+const AFRO_HOLE_H  = 0.55;   // face hole half-height (× face height)
 
 // Stable curl-texture points in a unit disk (seeded once so they don't shimmer)
-const AFRO_CURLS = Array.from({ length: 60 }, () => {
+const AFRO_CURLS = Array.from({ length: 70 }, () => {
   const a = Math.random() * Math.PI * 2;
   const r = Math.sqrt(Math.random()); // uniform over disk area
   return [Math.cos(a) * r, Math.sin(a) * r];
@@ -274,54 +276,60 @@ export function drawAfro(ctx, drawingUtils, result, deps) {
   const px = (lms, i) => [lms[i].x * w, lms[i].y * h];
 
   for (const lms of result.faceLandmarks) {
-    const [rx, ry] = px(lms, 234);  // right cheek edge
-    const [lx, ly] = px(lms, 454);  // left cheek edge
-    const [fx, fy] = px(lms, 10);   // forehead top (mid)
+    const [rx, ry] = px(lms, 234);   // right cheek edge
+    const [lx, ly] = px(lms, 454);   // left cheek edge
+    const [fx, fy] = px(lms, 10);    // forehead top (mid)
+    const [chx, chy] = px(lms, 152); // chin bottom
     const [e1x, e1y] = px(lms, 33);  // right eye outer corner
     const [e2x, e2y] = px(lms, 263); // left eye outer corner
 
-    const fw = Math.hypot(lx - rx, ly - ry);
-    if (!(fw > 0)) continue;
+    const fw = Math.hypot(lx - rx, ly - ry);   // face width
+    const fh = Math.hypot(chx - fx, chy - fy); // face height (forehead→chin)
+    if (!(fw > 0) || !(fh > 0)) continue;
 
-    const baseR = fw * AFRO_SIZE;
-    const lift  = baseR * AFRO_LIFT;
-    const bumpR = baseR * 0.5;
+    const faceCX = (rx + lx) / 2;
+    const faceCY = (fy + chy) / 2;             // face centre
+    const angle  = Math.atan2(e2y - e1y, e2x - e1x); // head tilt
 
-    const cx = (rx + lx) / 2;       // horizontal centre of the face
-    const cy = fy;                  // anchor at forehead top
-    const angle = Math.atan2(e2y - e1y, e2x - e1x); // head tilt
+    const Router = fw * AFRO_SIZE;
+    const outerCY = -fw * 0.12;                // hair sits a bit above face centre
+    const holeRX = fw * AFRO_HOLE_W;
+    const holeRY = fh * AFRO_HOLE_H;
+    const holeCY = fh * 0.06;                  // hole nudged down to leave hairline
 
     ctx.save();
-    ctx.translate(cx, cy);
+    ctx.translate(faceCX, faceCY);
     ctx.rotate(angle);
 
-    // Fluffy silhouette: one big disk + a ring of overlapping puffs.
-    // Centre is lifted up so the mass crowns the head and clears the eyes.
-    ctx.shadowColor = "rgba(0,0,0,0.40)";
-    ctx.shadowBlur = baseR * 0.22;
-    ctx.fillStyle = AFRO_COLOR;
-    ctx.beginPath();
-    ctx.moveTo(baseR, -lift);
-    ctx.arc(0, -lift, baseR, 0, Math.PI * 2);
-    for (let i = 0; i < AFRO_BUMPS; i++) {
-      const a = (i / AFRO_BUMPS) * Math.PI * 2;
-      const bx = Math.cos(a) * baseR;
-      const by = -lift + Math.sin(a) * baseR;
-      ctx.moveTo(bx + bumpR, by);
-      ctx.arc(bx, by, bumpR, 0, Math.PI * 2);
+    // Build the hair as an outer bumpy disk with a face-shaped hole punched
+    // out, so the face shows through and the hair frames it all around.
+    const outer = new Path2D();
+    const segs = 80;
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      const r = Router * (1 + AFRO_WOBBLE * Math.cos(a * AFRO_BUMPS));
+      const x = Math.cos(a) * r;
+      const y = outerCY + Math.sin(a) * r;
+      i ? outer.lineTo(x, y) : outer.moveTo(x, y);
     }
-    ctx.fill();
+    outer.closePath();
+    const hole = new Path2D();
+    hole.ellipse(0, holeCY, holeRX, holeRY, 0, 0, Math.PI * 2);
+    outer.addPath(hole); // separate subpath → evenodd makes it a hole
+
+    ctx.shadowColor = "rgba(0,0,0,0.40)";
+    ctx.shadowBlur = Router * 0.15;
+    ctx.fillStyle = AFRO_COLOR;
+    ctx.fill(outer, "evenodd");
     ctx.shadowColor = "transparent";
 
-    // Curl texture — lighter dabs, clipped to the main disk so they stay inside
-    ctx.beginPath();
-    ctx.arc(0, -lift, baseR, 0, Math.PI * 2);
-    ctx.clip();
+    // Curl texture — lighter dabs, clipped to the hair ring (hole excluded)
+    ctx.clip(outer, "evenodd");
     ctx.fillStyle = AFRO_HILIGHT;
-    const curlR = bumpR * 0.38;
+    const curlR = Router * 0.11;
     for (const [ux, uy] of AFRO_CURLS) {
       ctx.beginPath();
-      ctx.arc(ux * baseR, -lift + uy * baseR, curlR, 0, Math.PI * 2);
+      ctx.arc(ux * Router, outerCY + uy * Router, curlR, 0, Math.PI * 2);
       ctx.fill();
     }
 
