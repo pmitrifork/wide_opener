@@ -184,8 +184,10 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
   for (const idx of hull) { cx += pts[idx][0]; cy += pts[idx][1]; }
   cx /= hull.length; cy /= hull.length;
 
-  // Build the expanded boundary polygon once; reused for both clip and outline
-  const boundary = hull.map((idx) => {
+  // Build the expanded boundary polygon once; reused for both clip and outline.
+  // NB: delaunay.hull is a Uint32Array, so use Array.from (typed-array .map
+  // would coerce the returned [x,y] pairs back to numbers).
+  const boundary = Array.from(hull, (idx) => {
     const [x, y] = pts[idx];
     return [cx + (x - cx) * VORONOI_EXPAND, cy + (y - cy) * VORONOI_EXPAND];
   });

@@ -183,16 +183,21 @@ function tick() {
   // Always draw the last known result — even on rAF ticks where the video
   // frame didn't advance yet. This prevents the mesh going blank for one frame
   // whenever the detector or video pipeline hiccups.
-  if (eff.detector === "both") {
-    // Pass both results; effect decides how to combine them
-    if (state.lastPoseResult || state.lastFaceResult) {
-      drewSomething = eff.draw(ctx, drawingUtils,
-        { pose: state.lastPoseResult, face: state.lastFaceResult }, mpClasses);
+  // Wrapped so an effect throwing can never kill the render loop / freeze video.
+  try {
+    if (eff.detector === "both") {
+      // Pass both results; effect decides how to combine them
+      if (state.lastPoseResult || state.lastFaceResult) {
+        drewSomething = eff.draw(ctx, drawingUtils,
+          { pose: state.lastPoseResult, face: state.lastFaceResult }, mpClasses);
+      }
+    } else if (eff.detector === "pose" && state.lastPoseResult) {
+      drewSomething = eff.draw(ctx, drawingUtils, state.lastPoseResult, mpClasses);
+    } else if (eff.detector === "face" && state.lastFaceResult) {
+      drewSomething = eff.draw(ctx, drawingUtils, state.lastFaceResult, mpClasses);
     }
-  } else if (eff.detector === "pose" && state.lastPoseResult) {
-    drewSomething = eff.draw(ctx, drawingUtils, state.lastPoseResult, mpClasses);
-  } else if (eff.detector === "face" && state.lastFaceResult) {
-    drewSomething = eff.draw(ctx, drawingUtils, state.lastFaceResult, mpClasses);
+  } catch (err) {
+    console.error("effect draw error:", err);
   }
   ctx.restore();
 
