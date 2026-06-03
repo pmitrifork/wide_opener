@@ -30,8 +30,8 @@ const AFRO_HOLE_H  = 0.52;   // face opening half-height (× face height)
 const AFRO_HOLE_CY = 0.10;   // face opening vertical nudge down (× face height)
 const AFRO_JAW     = 0.46;   // clip the hair off below this line (× face height)
 
-// Optional real afro image overlay. Drop a transparent PNG at ./afro.png and
-// it will be used instead of the procedural hair (falls back if absent).
+// Optional real afro image overlay. Drop a transparent PNG at ./drawAfro.png
+// and it will be used instead of the procedural hair (falls back if absent).
 //   AFRO_IMG_SCALE : image width as a multiple of detected face width
 //   AFRO_IMG_CY    : vertical centre offset from face centre (× face height;
 //                    negative = up). Tune so the face sits in the wig opening.
@@ -40,7 +40,7 @@ const AFRO_IMG_CY    = -0.45;
 const afroImg = new Image();
 let afroImgReady = false;
 afroImg.onload = () => { afroImgReady = afroImg.naturalWidth > 0; };
-afroImg.src = "./afro.png";
+afroImg.src = "./drawAfro.png";
 
 // MediaPipe FaceLandmarker face-oval ring (ordered: top centre, around to chin
 // and back up). Used to trace the real head outline.
