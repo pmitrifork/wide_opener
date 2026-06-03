@@ -98,15 +98,12 @@ export function drawFullBody(ctx, drawingUtils, { pose, face }, deps) {
   }
 
   if (face?.faceLandmarks?.length) {
-    // Use the first face only (the most prominent person's face)
+    // Tessellation only — no eye/lip accents, the pose skeleton already
+    // covers the face region and the accents would clash with it.
     const landmarks = face.faceLandmarks[0];
     drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_TESSELATION, {
       color: MESH_COLOR, lineWidth: 0.6,
     });
-    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,  { color: MESH_EYE_COLOR, lineWidth: 1.5 });
-    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,   { color: MESH_EYE_COLOR, lineWidth: 1.5 });
-    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,  { color: MESH_EYE_COLOR, lineWidth: 1.5 });
-    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LIPS,       { color: MESH_EYE_COLOR, lineWidth: 1.5 });
     drew = true;
   }
 
