@@ -14,6 +14,7 @@ const VORONOI_BASE   = "#cfc6b4";  // shadowed cream (strut underside)
 const VORONOI_TOP    = "#f7f2e7";  // bright cream (strut highlight)
 const VORONOI_STEP   = 4;          // sample every Nth landmark → bigger cells (higher = chunkier)
 const VORONOI_WIDTH  = 9;          // strut thickness in px (scaled by face size below)
+const VORONOI_EXPAND = 1.18;       // grow the clip region outward so cells fill the whole face
 
 // d3-delaunay is loaded lazily from CDN as an ES module so the other effects
 // keep working even if it's unavailable (e.g. fully offline mode).
@@ -175,12 +176,20 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
 
   ctx.save();
 
-  // Clip to the convex hull of the face points so cells hug the face shape
+  // Clip to the (expanded) convex hull of the face points. The raw hull passes
+  // through the outermost landmark centres, leaving the face edge unfilled, so
+  // we push each hull vertex outward from the centroid to cover the whole face.
   const hull = delaunay.hull;
+  let cx = 0, cy = 0;
+  for (const idx of hull) { cx += pts[idx][0]; cy += pts[idx][1]; }
+  cx /= hull.length; cy /= hull.length;
+
   ctx.beginPath();
   for (let i = 0; i < hull.length; i++) {
     const [x, y] = pts[hull[i]];
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    const ex = cx + (x - cx) * VORONOI_EXPAND;
+    const ey = cy + (y - cy) * VORONOI_EXPAND;
+    i ? ctx.lineTo(ex, ey) : ctx.moveTo(ex, ey);
   }
   ctx.closePath();
   ctx.clip();

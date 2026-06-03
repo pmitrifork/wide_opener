@@ -33,6 +33,8 @@ let state = {
   lastVideoTime: -1,
   lastPoseResult: null,  // held for a few frames so one missed detection doesn't flicker
   lastFaceResult: null,
+  poseMiss: 0,           // consecutive video frames with no pose detected
+  faceMiss: 0,           // consecutive video frames with no face detected
 };
 let poseLandmarker = null;
 let faceLandmarker = null;
@@ -87,6 +89,8 @@ async function startCamera(facingMode = currentFacingMode) {
   state.lastVideoTime = -1;
   state.lastPoseResult = null;
   state.lastFaceResult = null;
+  state.poseMiss = 0;
+  state.faceMiss = 0;
   state.emptyFrames = 0;
   state.filledFrames = 0;
   cameraReady = true;
@@ -155,13 +159,24 @@ function tick() {
     const needsFace = eff.detector === "face" || eff.detector === "both";
     if (needsPose) {
       const r = poseLandmarker.detectForVideo(video, now);
-      if (r.landmarks?.length)
+      if (r.landmarks?.length) {
         state.lastPoseResult = { ...r, landmarks: poseSmoother.smooth(r.landmarks) };
+        state.poseMiss = 0;
+      } else if (++state.poseMiss > CONFIG.holdFrames) {
+        // Detection gone for long enough — drop the held result so it clears
+        state.lastPoseResult = null;
+        poseSmoother.reset();
+      }
     }
     if (needsFace) {
       const r = faceLandmarker.detectForVideo(video, now);
-      if (r.faceLandmarks?.length)
+      if (r.faceLandmarks?.length) {
         state.lastFaceResult = { ...r, faceLandmarks: faceSmoother.smooth(r.faceLandmarks) };
+        state.faceMiss = 0;
+      } else if (++state.faceMiss > CONFIG.holdFrames) {
+        state.lastFaceResult = null;
+        faceSmoother.reset();
+      }
     }
   }
 
@@ -182,18 +197,14 @@ function tick() {
   ctx.restore();
 
   // Idle handling — hysteresis so the overlay doesn't flicker on the boundary:
-  // show after idleAfterFrames empty frames, but only hide after 8 filled frames.
+  // show after idleAfterFrames empty frames, but only hide after a few filled.
+  // (Held results are expired above, driven by missed detections.)
   if (drewSomething) {
     state.filledFrames++;
     if (state.filledFrames >= CONFIG.filledFramesBeforeHide) state.emptyFrames = 0;
   } else {
     state.emptyFrames++;
     state.filledFrames = 0;
-    // Expire the held result after a generous hold window
-    if (state.emptyFrames > CONFIG.holdFrames) {
-      state.lastPoseResult = null;
-      state.lastFaceResult = null;
-    }
   }
   idleEl.classList.toggle("show", state.emptyFrames > CONFIG.idleAfterFrames);
 
