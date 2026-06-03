@@ -120,6 +120,9 @@ async function initMediaPipe() {
     baseOptions: { modelAssetPath: src.faceModel, delegate: CONFIG.delegate },
     runningMode: "VIDEO",
     numFaces: CONFIG.numFaces,
+    minFaceDetectionConfidence: CONFIG.minFaceDetectionConfidence,
+    minFacePresenceConfidence:  CONFIG.minFacePresenceConfidence,
+    minTrackingConfidence:      CONFIG.minFaceTrackingConfidence,
   });
 
   drawingUtils = new DrawingUtils(ctx);

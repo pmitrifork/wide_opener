@@ -26,8 +26,8 @@ export const CONFIG = {
 
   // --- Camera ----------------------------------------------------------------
   camera: {
-    width:  1280,   // requested; the browser picks the closest it can do
-    height: 720,
+    width:  1920,   // requested; the browser picks the closest it can do.
+    height: 1080,   // higher res = faces detected from further away (costs FPS)
     facingMode: "user",
   },
 
@@ -35,6 +35,12 @@ export const CONFIG = {
   numPoses: 3,        // render only the single most prominent person
   numFaces: 10,
   delegate: "GPU",    // "GPU" (fast, WebGL) or "CPU" (fallback if GPU misbehaves)
+
+  // Face detection sensitivity. Lower minFaceDetection picks up smaller / more
+  // distant faces (at the cost of occasional false positives). 0.5 is default.
+  minFaceDetectionConfidence: 0.3,
+  minFacePresenceConfidence:  0.3,
+  minFaceTrackingConfidence:  0.3,
 
   // --- Look & feel -----------------------------------------------------------
   startEffect: "skeleton",  // "skeleton" | "mesh"
