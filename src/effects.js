@@ -35,7 +35,7 @@ const AFRO_JAW     = 0.46;   // clip the hair off below this line (× face heigh
 //   AFRO_IMG_SCALE : image width as a multiple of detected face width
 //   AFRO_IMG_CY    : vertical centre offset from face centre (× face height;
 //                    negative = up). Tune so the face sits in the wig opening.
-const AFRO_IMG_SCALE = 2.6;
+const AFRO_IMG_SCALE = 2.1;
 const AFRO_IMG_CY    = -0.45;
 const afroImg = new Image();
 let afroImgReady = false;
