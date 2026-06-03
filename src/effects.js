@@ -21,22 +21,6 @@ function mostProminentPose(landmarkGroups) {
   return best;
 }
 
-// PoseLandmarker landmark indices 0–10 are face points (nose, eyes, ears,
-// mouth corners). They're too coarse for close-up use and look wrong on
-// face crops, so we strip them and keep only the body skeleton.
-// Body landmarks start at index 11 (left shoulder).
-const FACE_LANDMARK_COUNT = 11;
-
-function bodyConnections(PoseLandmarker) {
-  return PoseLandmarker.POSE_CONNECTIONS.filter(
-    ({ start, end }) => start >= FACE_LANDMARK_COUNT && end >= FACE_LANDMARK_COUNT
-  );
-}
-
-function bodyLandmarks(landmarks) {
-  return landmarks.filter((_, i) => i >= FACE_LANDMARK_COUNT);
-}
-
 // ---------------------------------------------------------------------------
 //  SKELETON  (uses PoseLandmarker results)
 // ---------------------------------------------------------------------------
@@ -45,21 +29,19 @@ export function drawSkeleton(ctx, drawingUtils, result, deps) {
   const { PoseLandmarker } = deps;
 
   const landmarks = mostProminentPose(result.landmarks);
-  const connections = bodyConnections(PoseLandmarker);
-  const joints      = bodyLandmarks(landmarks);
 
   // Glow pass: thick, low-alpha line underneath for a soft neon halo
   ctx.save();
   ctx.shadowColor = SKELETON_COLOR;
   ctx.shadowBlur = 18;
-  drawingUtils.drawConnectors(landmarks, connections, {
+  drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
     color: SKELETON_COLOR,
     lineWidth: 5,
   });
   ctx.restore();
 
-  // Joints — body only, no face dots
-  drawingUtils.drawLandmarks(joints, {
+  // Joints
+  drawingUtils.drawLandmarks(landmarks, {
     color: JOINT_COLOR,
     fillColor: SKELETON_COLOR,
     lineWidth: 2,
