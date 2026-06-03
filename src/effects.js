@@ -42,6 +42,19 @@ let afroImgReady = false;
 afroImg.onload = () => { afroImgReady = afroImg.naturalWidth > 0; };
 afroImg.src = "./drawAfro.png";
 
+// Devil horns overlay (devil.png). The source has horns up top and small eye
+// ovals near the bottom — we crop to the top portion to keep only the horns.
+//   DEVIL_SCALE : horn span as a multiple of face width
+//   DEVIL_CY    : horn base position relative to forehead (× face height, +down)
+//   DEVIL_CROP  : fraction of source height to keep (top = horns, excludes eyes)
+const DEVIL_SCALE = 1.7;
+const DEVIL_CY    = 0.12;
+const DEVIL_CROP  = 0.52;
+const devilImg = new Image();
+let devilImgReady = false;
+devilImg.onload = () => { devilImgReady = devilImg.naturalWidth > 0; };
+devilImg.src = "./devil.png";
+
 // MediaPipe FaceLandmarker face-oval ring (ordered: top centre, around to chin
 // and back up). Used to trace the real head outline.
 const FACE_OVAL_IDX = [
@@ -435,6 +448,45 @@ export function drawAfro(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
+//  DEVIL  — horn image overlay anchored above each detected forehead.
+//  Crops the eyes out of the source and places the horns on the head, scaled
+//  to face width and rotated with head tilt.
+// ---------------------------------------------------------------------------
+export function drawDevil(ctx, drawingUtils, result, deps) {
+  if (!result?.faceLandmarks?.length || !devilImgReady) return false;
+  const w = ctx.canvas.width, h = ctx.canvas.height;
+  const px = (lms, i) => [lms[i].x * w, lms[i].y * h];
+
+  for (const lms of result.faceLandmarks) {
+    const [rx, ry] = px(lms, 234);   // right cheek edge
+    const [lx, ly] = px(lms, 454);   // left cheek edge
+    const [fx, fy] = px(lms, 10);    // forehead top (mid) — horn anchor
+    const [chx, chy] = px(lms, 152); // chin bottom
+    const [e1x, e1y] = px(lms, 33);  // right eye outer corner
+    const [e2x, e2y] = px(lms, 263); // left eye outer corner
+
+    const fw = Math.hypot(lx - rx, ly - ry);
+    const fh = Math.hypot(chx - fx, chy - fy);
+    if (!(fw > 0)) continue;
+    const angle = Math.atan2(e2y - e1y, e2x - e1x);
+
+    // Source crop: top DEVIL_CROP of the image (horns only, eyes excluded)
+    const sw = devilImg.naturalWidth;
+    const sh = devilImg.naturalHeight * DEVIL_CROP;
+    const iw = fw * DEVIL_SCALE;
+    const ih = iw * (sh / sw);
+
+    ctx.save();
+    ctx.translate(fx, fy);   // origin at forehead
+    ctx.rotate(angle);
+    // Centre horizontally; horn base sits just below the forehead anchor
+    ctx.drawImage(devilImg, 0, 0, sw, sh, -iw / 2, fh * DEVIL_CY - ih, iw, ih);
+    ctx.restore();
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 //  Registry. Each effect declares which detector it needs ('pose' | 'face' | 'both').
 // ---------------------------------------------------------------------------
 export const EFFECTS = {
@@ -443,4 +495,5 @@ export const EFFECTS = {
   fullbody: { label: "FULL BODY",  detector: "both", draw: drawFullBody },
   voronoi:  { label: "VORONOI",    detector: "face", draw: drawVoronoi  },
   afro:     { label: "AFRO",       detector: "face", draw: drawAfro, keepFace: true },
+  devil:    { label: "DEVIL",      detector: "face", draw: drawDevil, keepFace: true },
 };
