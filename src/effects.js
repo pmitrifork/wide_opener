@@ -73,9 +73,51 @@ export function drawMesh(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
-//  Registry. Each effect declares which detector it needs ('pose' | 'face').
+//  FULL BODY  (pose skeleton for the body + face mesh for the head)
+//  result is { pose, face } — either may be null if not yet detected.
+// ---------------------------------------------------------------------------
+export function drawFullBody(ctx, drawingUtils, { pose, face }, deps) {
+  const { PoseLandmarker, FaceLandmarker } = deps;
+  let drew = false;
+
+  if (pose?.landmarks?.length) {
+    const landmarks = mostProminentPose(pose.landmarks);
+
+    // Body skeleton — same neon glow as the skeleton effect
+    ctx.save();
+    ctx.shadowColor = SKELETON_COLOR;
+    ctx.shadowBlur  = 18;
+    drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+      color: SKELETON_COLOR, lineWidth: 5,
+    });
+    ctx.restore();
+    drawingUtils.drawLandmarks(landmarks, {
+      color: JOINT_COLOR, fillColor: SKELETON_COLOR, lineWidth: 2, radius: 4,
+    });
+    drew = true;
+  }
+
+  if (face?.faceLandmarks?.length) {
+    // Use the first face only (the most prominent person's face)
+    const landmarks = face.faceLandmarks[0];
+    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_TESSELATION, {
+      color: MESH_COLOR, lineWidth: 0.6,
+    });
+    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,  { color: MESH_EYE_COLOR, lineWidth: 1.5 });
+    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,   { color: MESH_EYE_COLOR, lineWidth: 1.5 });
+    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,  { color: MESH_EYE_COLOR, lineWidth: 1.5 });
+    drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LIPS,       { color: MESH_EYE_COLOR, lineWidth: 1.5 });
+    drew = true;
+  }
+
+  return drew;
+}
+
+// ---------------------------------------------------------------------------
+//  Registry. Each effect declares which detector it needs ('pose' | 'face' | 'both').
 // ---------------------------------------------------------------------------
 export const EFFECTS = {
   skeleton: { label: "SKELETON",   detector: "pose", draw: drawSkeleton },
-  mesh:     { label: "FACE MESH",  detector: "face", draw: drawMesh },
+  mesh:     { label: "FACE MESH",  detector: "face", draw: drawMesh     },
+  fullbody: { label: "FULL BODY",  detector: "both", draw: drawFullBody },
 };

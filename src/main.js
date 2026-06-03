@@ -148,27 +148,33 @@ function tick() {
   const eff = EFFECTS[state.effect];
   let drewSomething = false;
 
-  // Only run the detector when a new video frame has arrived
+  // Only run detectors when a new video frame has arrived
   if (cameraReady && video.currentTime !== state.lastVideoTime) {
     state.lastVideoTime = video.currentTime;
-    let result;
-    if (eff.detector === "pose") {
-      result = poseLandmarker.detectForVideo(video, now);
-      if (result.landmarks?.length) {
-        state.lastPoseResult = { ...result, landmarks: poseSmoother.smooth(result.landmarks) };
-      }
-    } else {
-      result = faceLandmarker.detectForVideo(video, now);
-      if (result.faceLandmarks?.length) {
-        state.lastFaceResult = { ...result, faceLandmarks: faceSmoother.smooth(result.faceLandmarks) };
-      }
+    const needsPose = eff.detector === "pose" || eff.detector === "both";
+    const needsFace = eff.detector === "face" || eff.detector === "both";
+    if (needsPose) {
+      const r = poseLandmarker.detectForVideo(video, now);
+      if (r.landmarks?.length)
+        state.lastPoseResult = { ...r, landmarks: poseSmoother.smooth(r.landmarks) };
+    }
+    if (needsFace) {
+      const r = faceLandmarker.detectForVideo(video, now);
+      if (r.faceLandmarks?.length)
+        state.lastFaceResult = { ...r, faceLandmarks: faceSmoother.smooth(r.faceLandmarks) };
     }
   }
 
   // Always draw the last known result — even on rAF ticks where the video
-  // frame didn't advance yet. This is what prevents the mesh from going blank
-  // for one frame whenever the detector or video pipeline hiccups.
-  if (eff.detector === "pose" && state.lastPoseResult) {
+  // frame didn't advance yet. This prevents the mesh going blank for one frame
+  // whenever the detector or video pipeline hiccups.
+  if (eff.detector === "both") {
+    // Pass both results; effect decides how to combine them
+    if (state.lastPoseResult || state.lastFaceResult) {
+      drewSomething = eff.draw(ctx, drawingUtils,
+        { pose: state.lastPoseResult, face: state.lastFaceResult }, mpClasses);
+    }
+  } else if (eff.detector === "pose" && state.lastPoseResult) {
     drewSomething = eff.draw(ctx, drawingUtils, state.lastPoseResult, mpClasses);
   } else if (eff.detector === "face" && state.lastFaceResult) {
     drewSomething = eff.draw(ctx, drawingUtils, state.lastFaceResult, mpClasses);
