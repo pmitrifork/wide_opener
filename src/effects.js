@@ -53,6 +53,25 @@ const FACE_OVAL_IDX = [
 // Stable per-vertex frizz offsets for the outline (seeded once, no shimmer)
 const AFRO_FRIZZ_SEED = FACE_OVAL_IDX.map(() => Math.random() * 2 - 1);
 
+// Build a Path2D of the face-oval region (optionally expanded outward from its
+// centroid). Used to reveal the live face when the background is replaced.
+export function faceRegionPath(lms, w, h, expand = 1.12) {
+  let cx = 0, cy = 0;
+  const pts = FACE_OVAL_IDX.map((idx) => {
+    const x = lms[idx].x * w, y = lms[idx].y * h;
+    cx += x; cy += y;
+    return [x, y];
+  });
+  cx /= pts.length; cy /= pts.length;
+  const path = new Path2D();
+  pts.forEach(([x, y], i) => {
+    const ex = cx + (x - cx) * expand, ey = cy + (y - cy) * expand;
+    i ? path.lineTo(ex, ey) : path.moveTo(ex, ey);
+  });
+  path.closePath();
+  return path;
+}
+
 // Stable hair strands: unit-disk anchor, length, sideways curve, tone index.
 const AFRO_STROKES = Array.from({ length: 900 }, () => {
   const a = Math.random() * Math.PI * 2;
@@ -423,5 +442,5 @@ export const EFFECTS = {
   mesh:     { label: "FACE MESH",  detector: "face", draw: drawMesh     },
   fullbody: { label: "FULL BODY",  detector: "both", draw: drawFullBody },
   voronoi:  { label: "VORONOI",    detector: "face", draw: drawVoronoi  },
-  afro:     { label: "AFRO",       detector: "face", draw: drawAfro     },
+  afro:     { label: "AFRO",       detector: "face", draw: drawAfro, keepFace: true },
 };

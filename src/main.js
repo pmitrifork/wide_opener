@@ -2,7 +2,7 @@
 //  MAIN  —  camera + MediaPipe + render loop
 // ============================================================================
 import { CONFIG } from "./config.js";
-import { EFFECTS } from "./effects.js";
+import { EFFECTS, faceRegionPath } from "./effects.js";
 import { Smoother } from "./smoother.js";
 
 const src = CONFIG[CONFIG.source]; // resolve 'cdn' or 'local' URLs
@@ -151,6 +151,18 @@ function tick() {
   // Only run the detector the current effect needs
   const eff = EFFECTS[state.effect];
   let drewSomething = false;
+
+  // For effects that opt into keepFace: when the background is replaced
+  // (black / image), still reveal the live face within the head region so the
+  // person stays visible (e.g. their face inside the afro).
+  if (eff.keepFace && state.bgMode !== "video" && state.lastFaceResult?.faceLandmarks?.length) {
+    for (const lms of state.lastFaceResult.faceLandmarks) {
+      ctx.save();
+      ctx.clip(faceRegionPath(lms, canvas.width, canvas.height, CONFIG.faceCutoutExpand));
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+  }
 
   // Only run detectors when a new video frame has arrived
   if (cameraReady && video.currentTime !== state.lastVideoTime) {

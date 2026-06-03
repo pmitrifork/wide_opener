@@ -47,6 +47,10 @@ export const CONFIG = {
   //   motionRef : movement (normalised 0–1 units) at which maxAlpha is reached
   smooth: { minAlpha: 0.12, maxAlpha: 0.85, motionRef: 0.03 },
 
+  // For keepFace effects (e.g. afro): how far to expand the revealed face
+  // region beyond the face oval when the background is replaced (1 = exact).
+  faceCutoutExpand: 1.15,
+
   // Idle screen appears after this many consecutive frames with nobody detected
   idleAfterFrames: 25,
   // How many consecutive detected frames required before the idle overlay hides
