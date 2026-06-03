@@ -17,24 +17,42 @@ const VORONOI_WIDTH  = 9;          // strut thickness in px (scaled by face size
 const VORONOI_EXPAND = 1.06;       // grow the clip region outward so cells fill the whole face
 
 // --- Afro wig overlay ------------------------------------------------------
-const AFRO_COLOR   = "#1c1611";   // base hair brown-black
-const AFRO_DARK    = "rgba(0,0,0,0.5)";          // curl shadows
-const AFRO_LITE    = "rgba(150,120,86,0.45)";    // curl highlights
-const AFRO_R       = 1.18;   // hair dome radius      (× face width)
-const AFRO_LIFT    = 0.34;   // dome centre above face centre (× face height)
-const AFRO_WOBBLE  = 0.07;   // fuzziness of the outer edge
-const AFRO_BUMPS   = 13;     // edge lobes
-const AFRO_HOLE_W  = 0.50;   // face opening half-width  (× face width)
+// The outline is built from the real FACE_OVAL landmarks (so it follows the
+// detected head shape + tilt), expanded outward into a hair dome. Texture is
+// drawn as many thin radial hair strokes rather than circles.
+const AFRO_BASE    = "#171009";   // base hair fill
+const AFRO_STRANDS = ["#0c0805", "#241a10", "#3a2a18", "#5a4126"]; // strand tones, dark→light
+const AFRO_VOL     = 0.55;   // outward expansion of the whole outline (× radius)
+const AFRO_TOPVOL  = 0.85;   // extra expansion at the top (taller crown)
+const AFRO_FRIZZ   = 0.05;   // random edge jaggedness (× face width)
+const AFRO_HOLE_W  = 0.46;   // face opening half-width  (× face width)
 const AFRO_HOLE_H  = 0.52;   // face opening half-height (× face height)
-const AFRO_HOLE_CY = 0.06;   // face opening vertical nudge (× face height)
-const AFRO_JAW     = 0.52;   // clip the hair off below this line (× face height)
+const AFRO_HOLE_CY = 0.10;   // face opening vertical nudge down (× face height)
+const AFRO_JAW     = 0.46;   // clip the hair off below this line (× face height)
 
-// Stable curl-texture dabs in a unit disk (seeded once so they don't shimmer).
-// Each: [x, y, tone] where tone < 0.5 → shadow dab, else highlight dab.
-const AFRO_CURLS = Array.from({ length: 260 }, () => {
+// MediaPipe FaceLandmarker face-oval ring (ordered: top centre, around to chin
+// and back up). Used to trace the real head outline.
+const FACE_OVAL_IDX = [
+  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379,
+  378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127,
+  162, 21, 54, 103, 67, 109,
+];
+
+// Stable per-vertex frizz offsets for the outline (seeded once, no shimmer)
+const AFRO_FRIZZ_SEED = FACE_OVAL_IDX.map(() => Math.random() * 2 - 1);
+
+// Stable hair strands: unit-disk anchor, length, sideways curve, tone index.
+const AFRO_STROKES = Array.from({ length: 900 }, () => {
   const a = Math.random() * Math.PI * 2;
-  const r = Math.sqrt(Math.random()); // uniform over disk area
-  return [Math.cos(a) * r, Math.sin(a) * r, Math.random()];
+  const r = Math.sqrt(Math.random());
+  return {
+    x: Math.cos(a) * r,
+    y: Math.sin(a) * r,
+    len: 0.06 + Math.random() * 0.10,        // × radius
+    curve: (Math.random() - 0.5) * 0.5,      // sideways kink
+    tone: (Math.random() * AFRO_STRANDS.length) | 0,
+    width: 0.8 + Math.random() * 1.4,
+  };
 });
 
 // d3-delaunay is loaded lazily from CDN as an ES module so the other effects
@@ -271,79 +289,101 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
-//  AFRO  — procedural afro wig anchored to each detected head.
-//  Sized to the face width, tilted with head rotation, drawn as a fluffy
-//  bumpy silhouette with stable curl texture. Works on multiple heads.
+//  AFRO  — procedural afro anchored to each detected head.
+//  The outline is traced from the real FACE_OVAL landmarks and expanded into a
+//  hair dome (so it follows the head's actual shape + tilt), with the face
+//  punched out. Texture is hundreds of thin radial hair strands, not circles.
 // ---------------------------------------------------------------------------
 export function drawAfro(ctx, drawingUtils, result, deps) {
   if (!result?.faceLandmarks?.length) return false;
   const w = ctx.canvas.width, h = ctx.canvas.height;
-  const px = (lms, i) => [lms[i].x * w, lms[i].y * h];
 
   for (const lms of result.faceLandmarks) {
-    const [rx, ry] = px(lms, 234);   // right cheek edge
-    const [lx, ly] = px(lms, 454);   // left cheek edge
-    const [fx, fy] = px(lms, 10);    // forehead top (mid)
-    const [chx, chy] = px(lms, 152); // chin bottom
-    const [e1x, e1y] = px(lms, 33);  // right eye outer corner
-    const [e2x, e2y] = px(lms, 263); // left eye outer corner
+    // Work in a face-local frame: translate to face centre + un-rotate by the
+    // head tilt, so the maths below is axis-aligned and conforms to the head.
+    const e1 = lms[33], e2 = lms[263];       // eye outer corners
+    const angle = Math.atan2((e2.y - e1.y) * h, (e2.x - e1.x) * w);
+    const cos = Math.cos(angle), sin = Math.sin(angle);
 
-    const fw = Math.hypot(lx - rx, ly - ry);   // face width
-    const fh = Math.hypot(chx - fx, chy - fy); // face height (forehead→chin)
+    // Oval points → pixel coords, then into local (centred, unrotated) frame
+    const oval = FACE_OVAL_IDX.map((idx) => {
+      const px = lms[idx].x * w, py = lms[idx].y * h;
+      return [px, py];
+    });
+    const faceCX = oval.reduce((s, p) => s + p[0], 0) / oval.length;
+    const faceCY = oval.reduce((s, p) => s + p[1], 0) / oval.length;
+    const local = oval.map(([px, py]) => {
+      const dx = px - faceCX, dy = py - faceCY;
+      return [cos * dx + sin * dy, -sin * dx + cos * dy]; // rotate by -angle
+    });
+
+    // Face metrics in local frame
+    let maxX = 0, maxY = 0;
+    for (const [x, y] of local) { maxX = Math.max(maxX, Math.abs(x)); maxY = Math.max(maxY, Math.abs(y)); }
+    const fw = maxX * 2, fh = maxY * 2;
     if (!(fw > 0) || !(fh > 0)) continue;
 
-    const faceCX = (rx + lx) / 2;
-    const faceCY = (fy + chy) / 2;             // face centre
-    const angle  = Math.atan2(e2y - e1y, e2x - e1x); // head tilt
+    // Expanded hair outline: push each oval vertex outward from centre, more
+    // at the top (taller crown), plus a stable frizz wobble.
+    const outline = local.map(([x, y], i) => {
+      const topness = Math.max(0, -y / maxY);             // 1 at top, 0 below
+      const f = 1 + AFRO_VOL + AFRO_TOPVOL * topness;
+      const frizz = AFRO_FRIZZ_SEED[i] * AFRO_FRIZZ * fw;
+      const len = Math.hypot(x, y) || 1;
+      return [x * f + (x / len) * frizz, y * f + (y / len) * frizz];
+    });
 
-    const Router  = fw * AFRO_R;
-    const outerCY = -fh * AFRO_LIFT;           // dome centred above the face
-    const holeRX  = fw * AFRO_HOLE_W;
-    const holeRY  = fh * AFRO_HOLE_H;
-    const holeCY  = fh * AFRO_HOLE_CY;
-    const jawY    = fh * AFRO_JAW;
+    const dome = new Path2D();
+    outline.forEach(([x, y], i) => (i ? dome.lineTo(x, y) : dome.moveTo(x, y)));
+    dome.closePath();
+
+    // Face opening (real-ish: an oval over eyes→chin), excluded from the hair
+    const hole = new Path2D();
+    hole.ellipse(0, fh * AFRO_HOLE_CY, fw * AFRO_HOLE_W, fh * AFRO_HOLE_H, 0, 0, Math.PI * 2);
+    dome.addPath(hole);
 
     ctx.save();
     ctx.translate(faceCX, faceCY);
     ctx.rotate(angle);
 
-    // Hair = a big fuzzy dome (centred above the head) with the face punched
-    // out, then clipped off below the jaw so it doesn't wrap the neck/chin —
-    // leaving a rounded mass that sits on top and frames down the sides.
-    const dome = new Path2D();
-    const segs = 96;
-    for (let i = 0; i <= segs; i++) {
-      const a = (i / segs) * Math.PI * 2;
-      const r = Router * (1 + AFRO_WOBBLE * Math.cos(a * AFRO_BUMPS));
-      const x = Math.cos(a) * r;
-      const y = outerCY + Math.sin(a) * r;
-      i ? dome.lineTo(x, y) : dome.moveTo(x, y);
-    }
-    dome.closePath();
-    const hole = new Path2D();
-    hole.ellipse(0, holeCY, holeRX, holeRY, 0, 0, Math.PI * 2);
-    dome.addPath(hole); // separate subpath → evenodd makes it a hole
-
-    // Clip away everything below the jaw line (open bottom, bare neck)
+    // Clip off everything below the jaw (bare neck, open bottom)
+    const jawY = fh * AFRO_JAW;
     ctx.beginPath();
-    ctx.rect(-Router * 1.5, outerCY - Router * 1.5, Router * 3, (jawY) - (outerCY - Router * 1.5));
+    ctx.rect(-fw * 2, -fh * 3, fw * 4, fh * 3 + jawY);
     ctx.clip();
 
-    // Base hair mass with a soft drop-shadow for depth
-    ctx.shadowColor = "rgba(0,0,0,0.40)";
-    ctx.shadowBlur = Router * 0.12;
-    ctx.fillStyle = AFRO_COLOR;
+    // Solid base mass with a soft drop-shadow for depth
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = fw * 0.10;
+    ctx.fillStyle = AFRO_BASE;
     ctx.fill(dome, "evenodd");
     ctx.shadowColor = "transparent";
 
-    // Curl texture — many small shadow/highlight dabs, clipped to the hair
+    // Hair strands — thin curved strokes radiating outward from the scalp,
+    // clipped to the hair region so they never cross the face.
     ctx.clip(dome, "evenodd");
-    const curlR = Router * 0.05;
-    for (const [ux, uy, tone] of AFRO_CURLS) {
-      ctx.fillStyle = tone < 0.5 ? AFRO_DARK : AFRO_LITE;
+    ctx.lineCap = "round";
+    const reach = Math.max(maxX, maxY) * (1 + AFRO_VOL + AFRO_TOPVOL);
+    const scalpY = -fh * 0.15; // strands grow outward from here
+    for (const s of AFRO_STROKES) {
+      const ax = s.x * reach;
+      const ay = scalpY + s.y * reach;
+      // outward direction from scalp centre
+      const dx = ax, dy = ay - scalpY;
+      const d = Math.hypot(dx, dy) || 1;
+      const ox = dx / d, oy = dy / d;          // outward unit
+      const px2 = -oy, py2 = ox;               // perpendicular (for the kink)
+      const L = s.len * reach;
+      const k = s.curve * L;
+      ctx.strokeStyle = AFRO_STRANDS[s.tone];
+      ctx.lineWidth = s.width;
       ctx.beginPath();
-      ctx.arc(ux * Router, outerCY + uy * Router, curlR, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(ax - ox * L * 0.5, ay - oy * L * 0.5);
+      ctx.quadraticCurveTo(
+        ax + px2 * k, ay + py2 * k,
+        ax + ox * L * 0.5, ay + oy * L * 0.5
+      );
+      ctx.stroke();
     }
 
     ctx.restore();
