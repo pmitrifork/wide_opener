@@ -9,6 +9,12 @@ const JOINT_COLOR    = "#ffffff";
 const MESH_COLOR      = "rgba(255, 255, 255, 0.55)";
 const MESH_EYE_COLOR  = "rgba(57, 255, 208, 0.9)";
 
+// PoseLandmarker indices 0–10 are face points (nose, eyes, ears, mouth).
+// Body starts at index 11 (left shoulder).
+const BODY_START = 11;
+const bodyOnly = (connections) =>
+  connections.filter(({ start, end }) => start >= BODY_START && end >= BODY_START);
+
 // Pick the pose whose landmarks have the highest average visibility score.
 // This reliably selects the most centred / most fully visible person and
 // avoids the jittery multi-skeleton look when bystanders drift into frame.
@@ -83,15 +89,16 @@ export function drawFullBody(ctx, drawingUtils, { pose, face }, deps) {
   if (pose?.landmarks?.length) {
     const landmarks = mostProminentPose(pose.landmarks);
 
-    // Body skeleton — same neon glow as the skeleton effect
+    // Body skeleton only — face connections stripped so the mesh handles the head
     ctx.save();
     ctx.shadowColor = SKELETON_COLOR;
     ctx.shadowBlur  = 18;
-    drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+    drawingUtils.drawConnectors(landmarks, bodyOnly(PoseLandmarker.POSE_CONNECTIONS), {
       color: SKELETON_COLOR, lineWidth: 5,
     });
     ctx.restore();
-    drawingUtils.drawLandmarks(landmarks, {
+    // Body joints only (no face dots — the mesh covers the head)
+    drawingUtils.drawLandmarks(landmarks.slice(BODY_START), {
       color: JOINT_COLOR, fillColor: SKELETON_COLOR, lineWidth: 2, radius: 4,
     });
     drew = true;
