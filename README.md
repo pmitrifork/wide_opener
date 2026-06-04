@@ -1,4 +1,4 @@
-# Human FX
+# Wide-open FX
 
 Real-time human detection with a visual effect (glowing **skeleton** or white **face mesh**),
 running in the browser from a webcam. Built for an installation: camera in a room,
