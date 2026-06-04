@@ -180,13 +180,15 @@ const playGetuppa    = makeSfx("./getuppa.mp3");
 const playAngel      = makeSfx("./angel.mp3");
 const playCowboy     = makeSfx("./cowboy.mp3");
 const playDevil      = makeSfx("./devil.mp3");
+const playWideOpen   = makeSfx("./wideopen.mp3");
 
 // Sounds played when switching into a particular effect
 const EFFECT_ENTER_SOUNDS = {
-  afro:   playGetuppa,
-  halo:   playAngel,
-  cowboy: playCowboy,
-  devil:  playDevil,
+  afro:     playGetuppa,
+  halo:     playAngel,
+  cowboy:   playCowboy,
+  devil:    playDevil,
+  bodymesh: playWideOpen,
 };
 
 // Short synthesized "ding" for a single thumbs-up
