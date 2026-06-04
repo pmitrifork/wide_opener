@@ -36,6 +36,7 @@ let state = {
   poseMiss: 0,           // consecutive video frames with no pose detected
   faceMiss: 0,           // consecutive video frames with no face detected
   thumbActive: false,    // is a thumbs-up currently being held (rising-edge debounce)
+  gunActive: false,      // is a finger-gun currently being held
 };
 let poseLandmarker = null;
 let faceLandmarker = null;
@@ -140,12 +141,29 @@ async function initMediaPipe() {
 }
 
 // ---------------------------------------------------------------------------
-//  Gesture sound — applause clip
+//  Gesture sounds
 // ---------------------------------------------------------------------------
-const applause = new Audio("./applause.mp3");
-function ding() {
-  applause.currentTime = 0;        // restart if already playing
-  applause.play().catch((e) => console.warn("audio play blocked:", e));
+function makeSfx(url) {
+  const a = new Audio(url);
+  return () => { a.currentTime = 0; a.play().catch((e) => console.warn("audio blocked:", e)); };
+}
+const playApplause = makeSfx("./applause.mp3");
+const playGunshot  = makeSfx("./gunshot.mp3");
+
+// Finger-gun detector from MediaPipe hand landmarks (21 pts per hand).
+// Gun = index extended, thumb extended, middle/ring/pinky folded.
+function isFingerGun(lm) {
+  const W = lm[0];
+  const d = (p) => Math.hypot(p.x - W.x, p.y - W.y); // distance from wrist
+  const extended = (tip, pip) => d(lm[tip]) > d(lm[pip]) * 1.1;
+  const folded   = (tip, pip) => d(lm[tip]) < d(lm[pip]);
+  return (
+    extended(8, 6) &&    // index extended
+    extended(4, 3) &&    // thumb extended (cocked up)
+    folded(12, 10) &&    // middle folded
+    folded(16, 14) &&    // ring folded
+    folded(20, 18)       // pinky folded
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -217,11 +235,17 @@ function tick() {
     // Hand gestures — independent of the current effect
     if (gestureRecognizer) {
       const gr = gestureRecognizer.recognizeForVideo(video, now);
+
       const isThumb = gr.gestures?.some(
         (hand) => hand[0]?.categoryName === "Thumb_Up" && hand[0].score >= CONFIG.gestureMinScore
       );
-      if (isThumb && !state.thumbActive) ding();   // play once on rising edge
+      if (isThumb && !state.thumbActive) playApplause();  // rising edge
       state.thumbActive = !!isThumb;
+
+      // Custom finger-gun gesture from the returned hand landmarks
+      const isGun = gr.landmarks?.some((lm) => lm?.length >= 21 && isFingerGun(lm));
+      if (isGun && !state.gunActive) playGunshot();       // rising edge
+      state.gunActive = !!isGun;
     }
   }
 
