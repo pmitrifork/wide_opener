@@ -75,6 +75,48 @@ Then set `source: "local"` in `src/config.js`. Everything now loads from `./vend
 
 ---
 
+## Deploy online (GitHub Pages)
+
+The camera needs a **secure context (HTTPS)**, so it won't work served over plain
+`http://`. The easiest free host is GitHub Pages — no build step, HTTPS included,
+and because `source: "cdn"` pulls MediaPipe from jsDelivr, the host never has to
+serve the tricky `.mjs` / `.wasm` MIME types. All asset paths are relative, so it
+works fine from a `/<repo>/` subpath.
+
+1. Push to GitHub (already done if you're reading this in the repo).
+2. Repo **Settings → Pages → Build and deployment**:
+   - **Source**: Deploy from a branch
+   - **Branch**: `main`, folder **/(root)** → **Save**
+3. Wait ~1 min. Live at `https://<user>.github.io/<repo>/`
+   (e.g. https://pmitrifork.github.io/wide_opener/).
+
+Every push to `main` redeploys automatically. First load on a new device pulls the
+ML models from the CDN (~10 MB), so give it a few seconds.
+
+**iPhone / mobile notes**
+- Open the HTTPS URL in Safari and allow the camera.
+- Tap the screen once — that first tap unlocks audio (iOS blocks sound until a
+  user gesture). Make sure the side **mute switch** is off.
+- Use the on-screen buttons (they appear on touch devices) instead of the keyboard.
+
+Other one-click options: **Cloudflare Pages** / **Netlify** / **Vercel** — connect
+the repo, leave the build command empty, set the publish directory to the repo root.
+
+### Quick local HTTPS for testing on a phone
+
+To test the live machine on a phone before deploying, tunnel the local server:
+
+```powershell
+python serve.py                       # serves http://localhost:8000
+# in another terminal:
+cloudflared tunnel --url http://localhost:8000   # prints an https://*.trycloudflare.com URL
+# or:  ngrok http 8000
+```
+
+Open the printed HTTPS URL on the phone.
+
+---
+
 ## Project layout
 
 ```
