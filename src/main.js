@@ -2,7 +2,7 @@
 //  MAIN  —  camera + MediaPipe + render loop
 // ============================================================================
 import { CONFIG } from "./config.js";
-import { EFFECTS, faceRegionPath } from "./effects.js";
+import { EFFECTS, faceRegionPath, buildBodyMesh } from "./effects.js";
 import { Smoother } from "./smoother.js";
 
 const src = CONFIG[CONFIG.source]; // resolve 'cdn' or 'local' URLs
@@ -116,6 +116,7 @@ async function initMediaPipe() {
     baseOptions: { modelAssetPath: src.poseModel, delegate: CONFIG.delegate },
     runningMode: "VIDEO",
     numPoses: CONFIG.numPoses,
+    outputSegmentationMasks: true,  // person silhouette for the BODY MESH effect
   });
 
   setStatus("loading face model…");
@@ -348,6 +349,12 @@ function tick() {
         state.lastPoseResult = null;
         poseSmoother.reset();
       }
+      // Build the body-silhouette Voronoi mesh from the segmentation mask
+      if (eff.usesMask && r.segmentationMasks?.length) {
+        buildBodyMesh(r.segmentationMasks[0], canvas.width, canvas.height);
+      }
+      // Free the mask buffers (we've consumed them this frame)
+      r.segmentationMasks?.forEach((m) => m.close?.());
     }
     if (needsFace) {
       const r = faceLandmarker.detectForVideo(video, now);

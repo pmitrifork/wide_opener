@@ -347,6 +347,99 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
+//  BODY MESH  — "Wide Open" Voronoi shell applied to the whole body, using the
+//  PoseLandmarker person-segmentation mask as the silhouette.
+//  buildBodyMesh() is called at detection time (consumes the mask immediately
+//  and renders to an offscreen canvas); drawBodyMesh() just blits that canvas.
+// ---------------------------------------------------------------------------
+const BODYMESH_CELLS = 24;   // approx number of cells across the mask width
+let _bodyCanvas = null;      // offscreen: the finished masked mesh
+let _maskCanvas = null;      // offscreen: silhouette alpha
+let _bodyReady  = false;
+
+// Deterministic per-cell jitter (stable across frames → no shimmer)
+function _hash(a, b) {
+  const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+export function buildBodyMesh(mask, outW, outH) {
+  _bodyReady = false;
+  if (!Delaunay) { ensureDelaunay(); return; }
+
+  const mw = mask.width, mh = mask.height;
+  let data;
+  try { data = mask.getAsFloat32Array(); } catch (e) { return; }
+  if (!data) return;
+
+  if (!_bodyCanvas) _bodyCanvas = document.createElement("canvas");
+  if (!_maskCanvas) _maskCanvas = document.createElement("canvas");
+  _bodyCanvas.width = outW; _bodyCanvas.height = outH;
+  _maskCanvas.width = mw;   _maskCanvas.height = mh;
+
+  // Silhouette → alpha mask canvas
+  const mctx = _maskCanvas.getContext("2d");
+  const id = mctx.createImageData(mw, mh);
+  for (let i = 0; i < mw * mh; i++) {
+    const inside = data[i] > 0.5 ? 255 : 0;
+    id.data[i * 4] = 255; id.data[i * 4 + 1] = 255; id.data[i * 4 + 2] = 255;
+    id.data[i * 4 + 3] = inside;
+  }
+  mctx.putImageData(id, 0, 0);
+
+  // Sample body points on a jittered grid (in output pixel space)
+  const sx = outW / mw, sy = outH / mh;
+  const step = Math.max(5, Math.floor(mw / BODYMESH_CELLS));
+  const pts = [];
+  for (let my = 0; my < mh; my += step) {
+    for (let mx = 0; mx < mw; mx += step) {
+      if (data[my * mw + mx] > 0.5) {
+        const jx = (_hash(mx, my) - 0.5) * step;
+        const jy = (_hash(my, mx) - 0.5) * step;
+        pts.push([(mx + jx) * sx, (my + jy) * sy]);
+      }
+    }
+  }
+
+  const octx = _bodyCanvas.getContext("2d");
+  octx.clearRect(0, 0, outW, outH);
+  if (pts.length < 4) return;
+
+  const delaunay = Delaunay.from(pts);
+  const voronoi = delaunay.voronoi([0, 0, outW, outH]);
+
+  octx.beginPath();
+  voronoi.render(octx);
+  octx.lineCap = "round";
+  octx.lineJoin = "round";
+  const strut = Math.max(2, outW * 0.0045);
+  octx.shadowColor = "rgba(0,0,0,0.45)";
+  octx.shadowBlur = strut * 0.8;
+  octx.shadowOffsetX = strut * 0.25;
+  octx.shadowOffsetY = strut * 0.3;
+  octx.strokeStyle = VORONOI_BASE;
+  octx.lineWidth = strut;
+  octx.stroke();
+  octx.shadowColor = "transparent";
+  octx.strokeStyle = VORONOI_TOP;
+  octx.lineWidth = strut * 0.45;
+  octx.stroke();
+
+  // Crop the struts to the body silhouette
+  octx.globalCompositeOperation = "destination-in";
+  octx.drawImage(_maskCanvas, 0, 0, outW, outH);
+  octx.globalCompositeOperation = "source-over";
+
+  _bodyReady = true;
+}
+
+export function drawBodyMesh(ctx) {
+  if (!_bodyReady || !_bodyCanvas) return false;
+  ctx.drawImage(_bodyCanvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 //  AFRO  — procedural afro anchored to each detected head.
 //  The outline is traced from the real FACE_OVAL landmarks and expanded into a
 //  hair dome (so it follows the head's actual shape + tilt), with the face
@@ -597,6 +690,7 @@ export const EFFECTS = {
   mesh:     { label: "FACE MESH",  detector: "face", draw: drawMesh     },
   fullbody: { label: "FULL BODY",  detector: "both", draw: drawFullBody },
   voronoi:  { label: "VORONOI",    detector: "face", draw: drawVoronoi  },
+  bodymesh: { label: "BODY MESH",  detector: "pose", draw: drawBodyMesh, usesMask: true },
   afro:     { label: "AFRO",       detector: "face", draw: drawAfro, keepFace: true },
   devil:    { label: "DEVIL",      detector: "face", draw: drawDevil, keepFace: true },
   halo:     { label: "HALO",       detector: "face", draw: drawHalo,  keepFace: true },
