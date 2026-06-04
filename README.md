@@ -8,8 +8,9 @@ Stack: plain HTML/JS + [`@mediapipe/tasks-vision`](https://www.npmjs.com/package
 (Pose Landmarker + Face Landmarker). No build step, no framework.
 
 **Inspiration:** The Chemical Brothers — *Wide Open* (ft. Beck). The music-video look —
-a dancer traced in white line art against black — is the visual north star; see
-[`wideopen.png`](wideopen.png) for a reference still from that piece.
+a dancer traced in a white 3D-printed Voronoi shell — is the visual north star:
+
+![Wide Open reference still](wide_open.jpg)
 
 ---
 
