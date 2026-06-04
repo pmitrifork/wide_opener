@@ -487,8 +487,8 @@ function tick() {
         (hd) => hd.lm?.length >= 21 && (isFingerGun(hd.lm) || isDoubleGun(hd.lm))
       ).length;
 
-      // HEARTS mode: emit heart particles while a two-hand heart is held
-      if (state.effect === "hearts") {
+      // HALO mode: a two-hand heart emits floating heart particles
+      if (state.effect === "halo") {
         const hc = heartCentre(hands);
         if (hc && now - state.lastHeartSpawn > 60) {
           spawnHeart(hc.x * canvas.width, hc.y * canvas.height);

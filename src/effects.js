@@ -824,13 +824,6 @@ export function drawCowboy(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
-//  HEARTS — the floating heart particles are emitted + drawn by main.js (they
-//  come from a hand gesture, not a landmark overlay). This draw is a no-op that
-//  just keeps the idle prompt away while a face is present.
-// ---------------------------------------------------------------------------
-export function drawHearts() { return true; }
-
-// ---------------------------------------------------------------------------
 //  Registry. Each effect declares which detector it needs ('pose' | 'face' | 'both').
 // ---------------------------------------------------------------------------
 export const EFFECTS = {
@@ -842,5 +835,4 @@ export const EFFECTS = {
   devil:    { label: "DEVIL",      detector: "face", draw: drawDevil, keepFace: true },
   halo:     { label: "HALO",       detector: "face", draw: drawHalo,  keepFace: true },
   cowboy:   { label: "COWBOY",     detector: "face", draw: drawCowboy, keepFace: true },
-  hearts:   { label: "HEARTS",     detector: "face", draw: drawHearts, keepFace: true },
 };
