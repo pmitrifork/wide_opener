@@ -364,22 +364,52 @@ function _hash(a, b) {
   return s - Math.floor(s);
 }
 
-// A fixed, seeded grid of points in the body's normalised [0,1]×[0,1] frame.
-// Mapped onto the live body bounding box each frame, so the whole pattern
-// moves/scales with the person while staying internally stable (no popping).
-const BODY_COLS = 11, BODY_ROWS = 24;
-const BODY_POINTS = [];
-for (let r = 0; r < BODY_ROWS; r++) {
-  for (let c = 0; c < BODY_COLS; c++) {
-    const u = (c + 0.5) / BODY_COLS + (_hash(c, r) - 0.5) * 0.9 / BODY_COLS;
-    const v = (r + 0.5) / BODY_ROWS + (_hash(r, c) - 0.5) * 0.9 / BODY_ROWS;
-    BODY_POINTS.push([u, v]);
+// Seeded points in the body's normalised [0,1]×[0,1] frame, with extra density
+// near the top (head) and bottom (feet/hands) to mimic the reference. They get
+// Lloyd-relaxed once (when d3 is ready) into organic, evenly-spaced cells, then
+// mapped onto the live body box each frame so the pattern moves with the person.
+let _seed = 1337;
+function _rand() { _seed = (_seed * 1103515245 + 12345) & 0x7fffffff; return _seed / 0x7fffffff; }
+function _band(n, v0, v1) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push([_rand(), v0 + _rand() * (v1 - v0)]);
+  return out;
+}
+let BODY_POINTS = [
+  ..._band(250, 0.10, 0.90),  // torso / limbs — uniform
+  ..._band(70,  0.00, 0.13),  // head — dense
+  ..._band(55,  0.85, 1.00),  // feet / lower legs — dense
+];
+let _relaxed = false;
+
+// Lloyd relaxation: move each point to its Voronoi cell centroid (organic spacing)
+function _lloyd(points, iters) {
+  let pts = points.map((p) => [Math.min(1, Math.max(0, p[0])), Math.min(1, Math.max(0, p[1]))]);
+  for (let it = 0; it < iters; it++) {
+    const v = Delaunay.from(pts).voronoi([0, 0, 1, 1]);
+    pts = pts.map((p, i) => {
+      const cell = v.cellPolygon(i);
+      if (!cell) return p;
+      let a = 0, cx = 0, cy = 0;
+      for (let j = 0; j < cell.length - 1; j++) {
+        const [x0, y0] = cell[j], [x1, y1] = cell[j + 1];
+        const cr = x0 * y1 - x1 * y0;
+        a += cr; cx += (x0 + x1) * cr; cy += (y0 + y1) * cr;
+      }
+      a *= 0.5;
+      if (Math.abs(a) < 1e-9) return p;
+      return [cx / (6 * a), cy / (6 * a)];
+    });
   }
+  return pts;
 }
 
 export function buildBodyMesh(mask, outW, outH) {
   _bodyReady = false;
   if (!Delaunay) { ensureDelaunay(); return; }
+
+  // One-time organic relaxation of the seeded points (needs d3)
+  if (!_relaxed) { BODY_POINTS = _lloyd(BODY_POINTS, 2); _relaxed = true; }
 
   const mw = mask.width, mh = mask.height;
   let data;
@@ -442,21 +472,32 @@ export function buildBodyMesh(mask, outW, outH) {
   const delaunay = Delaunay.from(pts);
   const voronoi = delaunay.voronoi([0, 0, outW, outH]);
 
+  // Build the cell-edge path once, stroke it in three passes for a 3D printed
+  // tube look: wide dark base (shadow) → cream body → bright core highlight.
   octx.beginPath();
   voronoi.render(octx);
   octx.lineCap = "round";
   octx.lineJoin = "round";
-  const strut = Math.max(2, outW * 0.0045);
-  octx.shadowColor = "rgba(0,0,0,0.45)";
-  octx.shadowBlur = strut * 0.8;
-  octx.shadowOffsetX = strut * 0.25;
-  octx.shadowOffsetY = strut * 0.3;
-  octx.strokeStyle = VORONOI_BASE;
+  const strut = Math.max(3, outW * 0.0075);
+
+  // 1) dark underside + drop shadow → depth
+  octx.shadowColor = "rgba(0,0,0,0.5)";
+  octx.shadowBlur = strut * 1.1;
+  octx.shadowOffsetX = strut * 0.3;
+  octx.shadowOffsetY = strut * 0.4;
+  octx.strokeStyle = "#9a8f78";
   octx.lineWidth = strut;
   octx.stroke();
+
+  // 2) cream body of the tube
   octx.shadowColor = "transparent";
+  octx.strokeStyle = VORONOI_BASE;
+  octx.lineWidth = strut * 0.7;
+  octx.stroke();
+
+  // 3) bright core highlight down the centre → rounded tube
   octx.strokeStyle = VORONOI_TOP;
-  octx.lineWidth = strut * 0.45;
+  octx.lineWidth = strut * 0.3;
   octx.stroke();
 
   // Crop the struts to the body silhouette
