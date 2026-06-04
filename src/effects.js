@@ -355,6 +355,7 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
 const BODYMESH_CELLS = 24;   // approx number of cells across the mask width
 let _bodyCanvas = null;      // offscreen: the finished masked mesh
 let _maskCanvas = null;      // offscreen: silhouette alpha
+let _outlineCanvas = null;   // offscreen: silhouette boundary ring
 let _bodyReady  = false;
 
 // Deterministic per-cell jitter (stable across frames → no shimmer)
@@ -429,6 +430,29 @@ export function buildBodyMesh(mask, outW, outH) {
   octx.globalCompositeOperation = "destination-in";
   octx.drawImage(_maskCanvas, 0, 0, outW, outH);
   octx.globalCompositeOperation = "source-over";
+
+  // Silhouette boundary: dilate the mask (offset copies) then subtract the
+  // original → a ring hugging the body edge, tinted cream.
+  if (!_outlineCanvas) _outlineCanvas = document.createElement("canvas");
+  _outlineCanvas.width = outW; _outlineCanvas.height = outH;
+  const lc = _outlineCanvas.getContext("2d");
+  lc.clearRect(0, 0, outW, outH);
+  const t = Math.max(3, outW * 0.006);
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
+    lc.drawImage(_maskCanvas, Math.cos(a) * t, Math.sin(a) * t, outW, outH);
+  }
+  lc.globalCompositeOperation = "source-in";    // tint the dilated shape
+  lc.fillStyle = VORONOI_TOP;
+  lc.fillRect(0, 0, outW, outH);
+  lc.globalCompositeOperation = "destination-out"; // carve out the interior
+  lc.drawImage(_maskCanvas, 0, 0, outW, outH);
+  lc.globalCompositeOperation = "source-over";
+
+  octx.shadowColor = "rgba(0,0,0,0.4)";
+  octx.shadowBlur = strut;
+  octx.drawImage(_outlineCanvas, 0, 0);
+  octx.shadowColor = "transparent";
 
   _bodyReady = true;
 }
@@ -689,7 +713,6 @@ export const EFFECTS = {
   skeleton: { label: "SKELETON",   detector: "pose", draw: drawSkeleton },
   mesh:     { label: "FACE MESH",  detector: "face", draw: drawMesh     },
   fullbody: { label: "FULL BODY",  detector: "both", draw: drawFullBody },
-  voronoi:  { label: "VORONOI",    detector: "face", draw: drawVoronoi  },
   bodymesh: { label: "BODY MESH",  detector: "pose", draw: drawBodyMesh, usesMask: true },
   afro:     { label: "AFRO",       detector: "face", draw: drawAfro, keepFace: true },
   devil:    { label: "DEVIL",      detector: "face", draw: drawDevil, keepFace: true },
