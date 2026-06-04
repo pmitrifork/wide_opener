@@ -14,6 +14,7 @@ export const CONFIG = {
     wasm:      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm",
     poseModel: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
     faceModel: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    gestureModel: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
   },
 
   // --- Local / offline sources (populated by download-assets) ----------------
@@ -22,6 +23,7 @@ export const CONFIG = {
     wasm:      "./vendor/wasm",
     poseModel: "./vendor/pose_landmarker_lite.task",
     faceModel: "./vendor/face_landmarker.task",
+    gestureModel: "./vendor/gesture_recognizer.task",
   },
 
   // --- Camera ----------------------------------------------------------------
@@ -41,6 +43,11 @@ export const CONFIG = {
   minFaceDetectionConfidence: 0.3,
   minFacePresenceConfidence:  0.3,
   minFaceTrackingConfidence:  0.3,
+
+  // --- Hand gestures ---------------------------------------------------------
+  enableGestures: true,   // detect hand gestures (Thumb_Up plays a sound)
+  numHands: 2,
+  gestureMinScore: 0.5,   // confidence needed to count a gesture
 
   // --- Look & feel -----------------------------------------------------------
   startEffect: "skeleton",  // "skeleton" | "mesh"

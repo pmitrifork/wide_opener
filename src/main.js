@@ -35,9 +35,11 @@ let state = {
   lastFaceResult: null,
   poseMiss: 0,           // consecutive video frames with no pose detected
   faceMiss: 0,           // consecutive video frames with no face detected
+  thumbActive: false,    // is a thumbs-up currently being held (rising-edge debounce)
 };
 let poseLandmarker = null;
 let faceLandmarker = null;
+let gestureRecognizer = null;
 let mpClasses = null; // { PoseLandmarker, FaceLandmarker, DrawingUtils }
 let drawingUtils = null;
 const poseSmoother = new Smoother(CONFIG.smooth);
@@ -103,8 +105,8 @@ async function startCamera(facingMode = currentFacingMode) {
 async function initMediaPipe() {
   setStatus("loading vision library…");
   const mp = await import(/* @vite-ignore */ src.bundle);
-  const { FilesetResolver, PoseLandmarker, FaceLandmarker, DrawingUtils } = mp;
-  mpClasses = { PoseLandmarker, FaceLandmarker, DrawingUtils };
+  const { FilesetResolver, PoseLandmarker, FaceLandmarker, GestureRecognizer, DrawingUtils } = mp;
+  mpClasses = { PoseLandmarker, FaceLandmarker, GestureRecognizer, DrawingUtils };
 
   const fileset = await FilesetResolver.forVisionTasks(src.wasm);
 
@@ -125,7 +127,37 @@ async function initMediaPipe() {
     minTrackingConfidence:      CONFIG.minFaceTrackingConfidence,
   });
 
+  if (CONFIG.enableGestures) {
+    setStatus("loading gesture model…");
+    gestureRecognizer = await GestureRecognizer.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: src.gestureModel, delegate: CONFIG.delegate },
+      runningMode: "VIDEO",
+      numHands: CONFIG.numHands,
+    });
+  }
+
   drawingUtils = new DrawingUtils(ctx);
+}
+
+// ---------------------------------------------------------------------------
+//  Gesture sound — a short synthesized "ding" (no asset needed)
+// ---------------------------------------------------------------------------
+let audioCtx = null;
+function ding() {
+  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(880, t);
+  o.frequency.exponentialRampToValueAtTime(1320, t + 0.12);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(t);
+  o.stop(t + 0.36);
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +224,16 @@ function tick() {
         state.lastFaceResult = null;
         faceSmoother.reset();
       }
+    }
+
+    // Hand gestures — independent of the current effect
+    if (gestureRecognizer) {
+      const gr = gestureRecognizer.recognizeForVideo(video, now);
+      const isThumb = gr.gestures?.some(
+        (hand) => hand[0]?.categoryName === "Thumb_Up" && hand[0].score >= CONFIG.gestureMinScore
+      );
+      if (isThumb && !state.thumbActive) ding();   // play once on rising edge
+      state.thumbActive = !!isThumb;
     }
   }
 
