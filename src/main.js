@@ -216,6 +216,7 @@ const GESTURE_SOUNDS = {
   gun:        playGunshot,
   gun2:       playGunshot2,
   machinegun: playMachinegun,
+  devillaugh: () => playDevil(),   // playDevil is declared below; call lazily
 };
 
 // Resume the (initially suspended) AudioContext on the first user interaction.
@@ -239,6 +240,20 @@ function isFingerGun(lm) {
     folded(12, 10) &&    // middle folded
     folded(16, 14) &&    // ring folded
     folded(20, 18)       // pinky folded
+  );
+}
+
+// Middle finger up: middle extended, index/ring/pinky folded.
+function isMiddleFinger(lm) {
+  const W = lm[0];
+  const d = (p) => Math.hypot(p.x - W.x, p.y - W.y);
+  const extended = (tip, pip) => d(lm[tip]) > d(lm[pip]) * 1.1;
+  const folded   = (tip, pip) => d(lm[tip]) < d(lm[pip]);
+  return (
+    extended(12, 10) && // middle extended
+    folded(8, 6) &&     // index folded
+    folded(16, 14) &&   // ring folded
+    folded(20, 18)      // pinky folded
   );
 }
 
@@ -498,12 +513,16 @@ function tick() {
 
       // Gun gestures only fire in COWBOY mode (hat on)
       const gunsArmed = state.effect === "cowboy";
+      // Middle finger only reacts in DEVIL mode
+      const middleHand = state.effect === "devil" &&
+        hands.find((hd) => hd.lm?.length >= 21 && isMiddleFinger(hd.lm))?.lm;
 
       // Resolve to a single action (priority order)
       let action = null;
       if (thumbsUp >= 2)      action = "applause";
       else if (thumbsUp === 1) action = "ding";
       else if (thumbsDown >= 1) action = "boo";
+      else if (middleHand)     action = "devillaugh";
       else if (gunsArmed && gunHands >= 2) action = "machinegun";  // both hands = guns
       else if (gunsArmed && gun2Hand)      action = "gun2";
       else if (gunsArmed && gunHand)       action = "gun";
