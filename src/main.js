@@ -182,6 +182,7 @@ const playAngel      = makeSfx("./angel.mp3");
 const playCowboy     = makeSfx("./cowboy.mp3");
 const playDevil      = makeSfx("./devil.mp3");
 const playWideOpen   = makeSfx("./wideopen.mp3");
+const playThunder    = makeSfx("./thunder.mp3");
 
 // Sounds played when switching into a particular effect
 const EFFECT_ENTER_SOUNDS = {
@@ -216,7 +217,7 @@ const GESTURE_SOUNDS = {
   gun:        playGunshot,
   gun2:       playGunshot2,
   machinegun: playMachinegun,
-  devillaugh: () => playDevil(),   // playDevil is declared below; call lazily
+  thunder:    () => playThunder(),  // declared below; call lazily
 };
 
 // Resume the (initially suspended) AudioContext on the first user interaction.
@@ -522,7 +523,7 @@ function tick() {
       if (thumbsUp >= 2)      action = "applause";
       else if (thumbsUp === 1) action = "ding";
       else if (thumbsDown >= 1) action = "boo";
-      else if (middleHand)     action = "devillaugh";
+      else if (middleHand)     action = "thunder";
       else if (gunsArmed && gunHands >= 2) action = "machinegun";  // both hands = guns
       else if (gunsArmed && gun2Hand)      action = "gun2";
       else if (gunsArmed && gunHand)       action = "gun";
