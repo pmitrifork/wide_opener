@@ -23,6 +23,12 @@ bgImage.src = "./background.jpg";
 
 const BG_MODES = ["video", "black", "image"];
 
+// Reliable touch detection (Android browsers don't always match the CSS media
+// query) → reveals the on-screen control buttons.
+if (navigator.maxTouchPoints > 0 || "ontouchstart" in window) {
+  document.body.classList.add("touch");
+}
+
 // Runtime state
 let state = {
   effect: CONFIG.startEffect,

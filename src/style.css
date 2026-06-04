@@ -97,11 +97,17 @@ body::after {
   display: none;
 }
 
-@media (hover: none) and (pointer: coarse) {
+/* Show on touch devices. Use OR (comma) so a device only needs one of the
+   signals — some Android browsers don't report both. JS also adds body.touch
+   as the most reliable signal (see main.js). */
+@media (hover: none), (pointer: coarse) {
   #touch-controls { display: flex; }
   #keys { display: none; }           /* keyboard hint irrelevant on mobile */
   html, body { cursor: auto; }       /* restore cursor on touch devices */
 }
+body.touch #touch-controls { display: flex; }
+body.touch #keys { display: none; }
+body.touch, body.touch html { cursor: auto; }
 
 #touch-controls button {
   font-family: var(--font);
