@@ -177,21 +177,34 @@ const playGunshot    = makeSfx("./gunshot.mp3");
 const playGunshot2   = makeSfx("./gunshot2.mp3");
 const playMachinegun = makeSfx("./machinegun.mp3");
 const playBoo        = makeSfx("./boo.mp3");
-const playGetuppa    = makeSfx("./getuppa.mp3");
-const playAngel      = makeSfx("./angel.mp3");
-const playCowboy     = makeSfx("./cowboy.mp3");
-const playDevil      = makeSfx("./devil.mp3");
-const playWideOpen   = makeSfx("./wideopen.mp3");
 const playThunder    = makeSfx("./thunder.mp3");
 
-// Sounds played when switching into a particular effect
-const EFFECT_ENTER_SOUNDS = {
-  afro:     playGetuppa,
-  halo:     playAngel,
-  cowboy:   playCowboy,
-  devil:    playDevil,
-  bodymesh: playWideOpen,
+// Sounds played when switching into a particular effect. These share one
+// "channel": starting a new one stops the previous, so quick effect switches
+// don't pile up overlapping clips.
+const EFFECT_ENTER_URLS = {
+  afro:     "./getuppa.mp3",
+  halo:     "./angel.mp3",
+  cowboy:   "./cowboy.mp3",
+  devil:    "./devil.mp3",
+  bodymesh: "./wideopen.mp3",
 };
+Object.values(EFFECT_ENTER_URLS).forEach(loadBuffer);
+
+let entrySource = null;
+function playEffectEnter(effect) {
+  const url = EFFECT_ENTER_URLS[effect];
+  const b = url && buffers[url];
+  if (!b) return;
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  if (entrySource) { try { entrySource.stop(); } catch (e) {} }
+  const s = audioCtx.createBufferSource();
+  s.buffer = b;
+  s.connect(audioCtx.destination);
+  s.onended = () => { if (entrySource === s) entrySource = null; };
+  s.start();
+  entrySource = s;
+}
 
 // Short synthesized "ding" for a single thumbs-up
 function playDing() {
@@ -620,7 +633,7 @@ function handleAction(k) {
     const i = effectKeys.indexOf(state.effect);
     state.effect = effectKeys[(i + 1) % effectKeys.length];
     refreshHud();
-    EFFECT_ENTER_SOUNDS[state.effect]?.();   // play the effect's entry sound
+    playEffectEnter(state.effect);   // play the effect's entry sound (single channel)
   } else if (k === "m") {                // mirror
     state.mirror = !state.mirror;
   } else if (k === "b") {                // background: video -> black -> image
