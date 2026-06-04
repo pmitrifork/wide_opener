@@ -152,31 +152,36 @@ function mostProminentPose(landmarkGroups) {
   return best;
 }
 
+// Per-person skeleton colours (cycled when multiple people are detected)
+const SKELETON_COLORS = ["#39ffd0", "#ff5bd0", "#ffd83b", "#5b9dff", "#a6ff5b"];
+
 // ---------------------------------------------------------------------------
-//  SKELETON  (uses PoseLandmarker results)
+//  SKELETON  (uses PoseLandmarker results) — draws every detected person
 // ---------------------------------------------------------------------------
 export function drawSkeleton(ctx, drawingUtils, result, deps) {
   if (!result?.landmarks?.length) return false;
   const { PoseLandmarker } = deps;
 
-  const landmarks = mostProminentPose(result.landmarks);
+  result.landmarks.forEach((landmarks, i) => {
+    const color = SKELETON_COLORS[i % SKELETON_COLORS.length];
 
-  // Glow pass: thick, low-alpha line underneath for a soft neon halo
-  ctx.save();
-  ctx.shadowColor = SKELETON_COLOR;
-  ctx.shadowBlur = 18;
-  drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
-    color: SKELETON_COLOR,
-    lineWidth: 5,
-  });
-  ctx.restore();
+    // Glow pass: thick line with a soft neon halo
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 18;
+    drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+      color,
+      lineWidth: 5,
+    });
+    ctx.restore();
 
-  // Joints
-  drawingUtils.drawLandmarks(landmarks, {
-    color: JOINT_COLOR,
-    fillColor: SKELETON_COLOR,
-    lineWidth: 2,
-    radius: 4,
+    // Joints
+    drawingUtils.drawLandmarks(landmarks, {
+      color: JOINT_COLOR,
+      fillColor: color,
+      lineWidth: 2,
+      radius: 4,
+    });
   });
 
   return true;
