@@ -39,6 +39,7 @@ let state = {
   candidate: null,       // gesture being considered (stability gate)
   candFrames: 0,         // consecutive frames the candidate has held
   muzzle: null,          // { x, y, angle, time } for the gun muzzle flash
+  lastHeartSpawn: 0,     // throttle for the HEARTS particle emitter
 };
 let poseLandmarker = null;
 let faceLandmarker = null;
@@ -255,6 +256,77 @@ function isDoubleGun(lm) {
   );
 }
 
+// Two-hand heart: index fingertips near each other, thumb tips near each other,
+// index cluster above thumb cluster. Returns the heart centre (normalised) or null.
+function heartCentre(hands) {
+  const lms = hands.filter((hd) => hd.lm?.length >= 21).map((hd) => hd.lm);
+  if (lms.length < 2) return null;
+  const A = lms[0], B = lms[1];
+  const scale = (Math.hypot(A[9].x - A[0].x, A[9].y - A[0].y) +
+                 Math.hypot(B[9].x - B[0].x, B[9].y - B[0].y)) / 2 || 1;
+  const dIndex = Math.hypot(A[8].x - B[8].x, A[8].y - B[8].y);
+  const dThumb = Math.hypot(A[4].x - B[4].x, A[4].y - B[4].y);
+  const idxY = (A[8].y + B[8].y) / 2;
+  const thbY = (A[4].y + B[4].y) / 2;
+  if (dIndex < scale * 0.9 && dThumb < scale * 1.4 && idxY < thbY) {
+    return {
+      x: (A[8].x + B[8].x + A[4].x + B[4].x) / 4,
+      y: (A[8].y + B[8].y + A[4].y + B[4].y) / 2.6, // bias up toward the cleft
+    };
+  }
+  return null;
+}
+
+// Floating heart particles
+const hearts = [];
+let heartsClock = performance.now();
+function spawnHeart(x, y) {
+  const s = canvas.width * (0.025 + Math.random() * 0.02);
+  hearts.push({
+    x: x + (Math.random() - 0.5) * canvas.width * 0.03,
+    y,
+    vx: (Math.random() - 0.5) * canvas.width * 0.04,
+    vy: -canvas.height * (0.10 + Math.random() * 0.06),
+    size: s,
+    rot: (Math.random() - 0.5) * 0.6,
+    vr: (Math.random() - 0.5) * 1.2,
+    life: 1,                       // 1 → 0
+    decay: 0.45 + Math.random() * 0.25,
+  });
+}
+function drawHeartShape(x, y, s, rot, alpha) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(s, s);
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(0, -0.35);
+  ctx.bezierCurveTo(0.55, -0.95, 1.25, -0.05, 0, 0.65);
+  ctx.bezierCurveTo(-1.25, -0.05, -0.55, -0.95, 0, -0.35);
+  ctx.closePath();
+  ctx.shadowColor = "rgba(255,40,100,0.7)";
+  ctx.shadowBlur = 1.2;
+  ctx.fillStyle = "#ff3b6b";
+  ctx.fill();
+  ctx.restore();
+}
+function updateAndDrawHearts(now) {
+  const dt = Math.min(0.05, (now - heartsClock) / 1000);
+  heartsClock = now;
+  for (let i = hearts.length - 1; i >= 0; i--) {
+    const p = hearts[i];
+    p.life -= p.decay * dt;
+    if (p.life <= 0) { hearts.splice(i, 1); continue; }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy *= 0.99;            // ease the rise
+    p.rot += p.vr * dt;
+    const alpha = Math.min(1, p.life * 1.4);
+    drawHeartShape(p.x, p.y, p.size, p.rot, alpha);
+  }
+}
+
 // Validate a real thumbs-down: thumb extended AND pointing down, fingers
 // folded. Gates MediaPipe's loose Thumb_Down classification.
 function isThumbDown(lm) {
@@ -415,6 +487,15 @@ function tick() {
         (hd) => hd.lm?.length >= 21 && (isFingerGun(hd.lm) || isDoubleGun(hd.lm))
       ).length;
 
+      // HEARTS mode: emit heart particles while a two-hand heart is held
+      if (state.effect === "hearts") {
+        const hc = heartCentre(hands);
+        if (hc && now - state.lastHeartSpawn > 60) {
+          spawnHeart(hc.x * canvas.width, hc.y * canvas.height);
+          state.lastHeartSpawn = now;
+        }
+      }
+
       // Gun gestures only fire in COWBOY mode (hat on)
       const gunsArmed = state.effect === "cowboy";
 
@@ -479,6 +560,7 @@ function tick() {
   }
 
   drawMuzzleFlash(now);   // on top of the effect, still inside the mirror frame
+  updateAndDrawHearts(now);
   ctx.restore();
 
   // Idle handling — hysteresis so the overlay doesn't flicker on the boundary:
