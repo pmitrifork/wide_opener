@@ -36,6 +36,8 @@ let state = {
   poseMiss: 0,           // consecutive video frames with no pose detected
   faceMiss: 0,           // consecutive video frames with no face detected
   lastAction: null,      // last gesture sound action played (rising-edge debounce)
+  candidate: null,       // gesture being considered (stability gate)
+  candFrames: 0,         // consecutive frames the candidate has held
   muzzle: null,          // { x, y, angle, time } for the gun muzzle flash
 };
 let poseLandmarker = null;
@@ -408,27 +410,34 @@ function tick() {
       else if (gun2Hand)       action = "gun2";
       else if (gunHand)        action = "gun";
 
-      // Play once on the rising edge (when the action changes)
-      if (action && action !== state.lastAction) {
-        GESTURE_SOUNDS[action]();
-        const aimHand =
-          action === "gun" ? gunHand :
-          action === "gun2" ? gun2Hand :
-          action === "machinegun" ? (gun2Hand || gunHand) : null;
-        if (aimHand) {
-          // Muzzle just past the index fingertip, aimed along the finger
-          const tip = aimHand[8], mcp = aimHand[5];
-          let dx = tip.x - mcp.x, dy = tip.y - mcp.y;
-          const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-          state.muzzle = {
-            x: tip.x + dx * 0.03,
-            y: tip.y + dy * 0.03,
-            angle: Math.atan2(dy, dx),
-            time: now,
-          };
+      // Stability gate: a gesture must persist for a few consecutive frames
+      // before it fires, so single-frame noise (e.g. as the model warms up or
+      // a hand passes by) can't trigger a sound.
+      if (action === state.candidate) state.candFrames++;
+      else { state.candidate = action; state.candFrames = 1; }
+
+      if (state.candFrames === CONFIG.gestureStableFrames) {
+        if (action && action !== state.lastAction) {
+          GESTURE_SOUNDS[action]();
+          const aimHand =
+            action === "gun" ? gunHand :
+            action === "gun2" ? gun2Hand :
+            action === "machinegun" ? (gun2Hand || gunHand) : null;
+          if (aimHand) {
+            // Muzzle just past the index fingertip, aimed along the finger
+            const tip = aimHand[8], mcp = aimHand[5];
+            let dx = tip.x - mcp.x, dy = tip.y - mcp.y;
+            const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+            state.muzzle = {
+              x: tip.x + dx * 0.03,
+              y: tip.y + dy * 0.03,
+              angle: Math.atan2(dy, dx),
+              time: now,
+            };
+          }
         }
+        state.lastAction = action;   // null resets so a gesture can refire later
       }
-      state.lastAction = action;
     }
   }
 

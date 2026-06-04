@@ -48,6 +48,7 @@ export const CONFIG = {
   enableGestures: true,   // detect hand gestures (Thumb_Up plays a sound)
   numHands: 2,
   gestureMinScore: 0.5,   // confidence needed to count a gesture
+  gestureStableFrames: 3, // frames a gesture must hold before firing (anti-noise)
 
   // --- Look & feel -----------------------------------------------------------
   startEffect: "skeleton",  // "skeleton" | "mesh"
