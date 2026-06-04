@@ -149,6 +149,7 @@ function makeSfx(url) {
 }
 const playApplause = makeSfx("./applause.mp3");
 const playGunshot  = makeSfx("./gunshot.mp3");
+const playGunshot2 = makeSfx("./gunshot2.mp3");
 const playBoo      = makeSfx("./boo.mp3");
 
 // Short synthesized "ding" for a single thumbs-up
@@ -175,6 +176,7 @@ const GESTURE_SOUNDS = {
   ding:     playDing,
   boo:      playBoo,
   gun:      playGunshot,
+  gun2:     playGunshot2,
 };
 
 // Finger-gun detector from MediaPipe hand landmarks (21 pts per hand).
@@ -188,6 +190,20 @@ function isFingerGun(lm) {
     extended(8, 6) &&    // index extended
     extended(4, 3) &&    // thumb extended (cocked up)
     folded(12, 10) &&    // middle folded
+    folded(16, 14) &&    // ring folded
+    folded(20, 18)       // pinky folded
+  );
+}
+
+// Double-barrel finger gun: index AND middle extended, ring/pinky folded.
+function isDoubleGun(lm) {
+  const W = lm[0];
+  const d = (p) => Math.hypot(p.x - W.x, p.y - W.y);
+  const extended = (tip, pip) => d(lm[tip]) > d(lm[pip]) * 1.0;
+  const folded   = (tip, pip) => d(lm[tip]) < d(lm[pip]);
+  return (
+    extended(8, 6) &&    // index extended
+    extended(12, 10) &&  // middle extended
     folded(16, 14) &&    // ring folded
     folded(20, 18)       // pinky folded
   );
@@ -338,21 +354,26 @@ function tick() {
       const thumbsDown = hands.filter(
         (hd) => hd.name === "Thumb_Down" && hd.score >= min && isThumbDown(hd.lm)
       ).length;
-      const gunHand = hands.find((hd) => hd.lm?.length >= 21 && isFingerGun(hd.lm))?.lm;
+      // Double gun checked first (it needs the middle finger extended, which
+      // the single gun forbids — so they're mutually exclusive)
+      const gun2Hand = hands.find((hd) => hd.lm?.length >= 21 && isDoubleGun(hd.lm))?.lm;
+      const gunHand  = hands.find((hd) => hd.lm?.length >= 21 && isFingerGun(hd.lm))?.lm;
 
       // Resolve to a single action (priority order)
       let action = null;
       if (thumbsUp >= 2)      action = "applause";
       else if (thumbsUp === 1) action = "ding";
       else if (thumbsDown >= 1) action = "boo";
+      else if (gun2Hand)       action = "gun2";
       else if (gunHand)        action = "gun";
 
       // Play once on the rising edge (when the action changes)
       if (action && action !== state.lastAction) {
         GESTURE_SOUNDS[action]();
-        if (action === "gun") {
+        const aimHand = action === "gun" ? gunHand : action === "gun2" ? gun2Hand : null;
+        if (aimHand) {
           // Muzzle just past the index fingertip, aimed along the finger
-          const tip = gunHand[8], mcp = gunHand[5];
+          const tip = aimHand[8], mcp = aimHand[5];
           let dx = tip.x - mcp.x, dy = tip.y - mcp.y;
           const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
           state.muzzle = {
