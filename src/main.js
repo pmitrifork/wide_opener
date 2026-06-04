@@ -140,24 +140,12 @@ async function initMediaPipe() {
 }
 
 // ---------------------------------------------------------------------------
-//  Gesture sound — a short synthesized "ding" (no asset needed)
+//  Gesture sound — applause clip
 // ---------------------------------------------------------------------------
-let audioCtx = null;
+const applause = new Audio("./applause.mp3");
 function ding() {
-  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === "suspended") audioCtx.resume();
-  const t = audioCtx.currentTime;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type = "sine";
-  o.frequency.setValueAtTime(880, t);
-  o.frequency.exponentialRampToValueAtTime(1320, t + 0.12);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
-  o.connect(g).connect(audioCtx.destination);
-  o.start(t);
-  o.stop(t + 0.36);
+  applause.currentTime = 0;        // restart if already playing
+  applause.play().catch((e) => console.warn("audio play blocked:", e));
 }
 
 // ---------------------------------------------------------------------------
