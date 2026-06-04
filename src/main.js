@@ -176,6 +176,14 @@ const playGunshot    = makeSfx("./gunshot.mp3");
 const playGunshot2   = makeSfx("./gunshot2.mp3");
 const playMachinegun = makeSfx("./machinegun.mp3");
 const playBoo        = makeSfx("./boo.mp3");
+const playGetuppa    = makeSfx("./getuppa.mp3");
+const playAngel      = makeSfx("./angel.mp3");
+
+// Sounds played when switching into a particular effect
+const EFFECT_ENTER_SOUNDS = {
+  afro: playGetuppa,
+  halo: playAngel,
+};
 
 // Short synthesized "ding" for a single thumbs-up
 function playDing() {
@@ -501,6 +509,7 @@ function handleAction(k) {
     const i = effectKeys.indexOf(state.effect);
     state.effect = effectKeys[(i + 1) % effectKeys.length];
     refreshHud();
+    EFFECT_ENTER_SOUNDS[state.effect]?.();   // play the effect's entry sound
   } else if (k === "m") {                // mirror
     state.mirror = !state.mirror;
   } else if (k === "b") {                // background: video -> black -> image
