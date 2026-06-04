@@ -35,8 +35,7 @@ let state = {
   lastFaceResult: null,
   poseMiss: 0,           // consecutive video frames with no pose detected
   faceMiss: 0,           // consecutive video frames with no face detected
-  thumbActive: false,    // is a thumbs-up currently being held (rising-edge debounce)
-  gunActive: false,      // is a finger-gun currently being held
+  lastAction: null,      // last gesture sound action played (rising-edge debounce)
 };
 let poseLandmarker = null;
 let faceLandmarker = null;
@@ -149,13 +148,40 @@ function makeSfx(url) {
 }
 const playApplause = makeSfx("./applause.mp3");
 const playGunshot  = makeSfx("./gunshot.mp3");
+const playBoo      = makeSfx("./boo.mp3");
+
+// Short synthesized "ding" for a single thumbs-up
+let audioCtx = null;
+function playDing() {
+  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(880, t);
+  o.frequency.exponentialRampToValueAtTime(1320, t + 0.12);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(t);
+  o.stop(t + 0.36);
+}
+
+const GESTURE_SOUNDS = {
+  applause: playApplause,
+  ding:     playDing,
+  boo:      playBoo,
+  gun:      playGunshot,
+};
 
 // Finger-gun detector from MediaPipe hand landmarks (21 pts per hand).
 // Gun = index extended, thumb extended, middle/ring/pinky folded.
 function isFingerGun(lm) {
   const W = lm[0];
   const d = (p) => Math.hypot(p.x - W.x, p.y - W.y); // distance from wrist
-  const extended = (tip, pip) => d(lm[tip]) > d(lm[pip]) * 1.1;
+  const extended = (tip, pip) => d(lm[tip]) > d(lm[pip]) * 1.0;
   const folded   = (tip, pip) => d(lm[tip]) < d(lm[pip]);
   return (
     extended(8, 6) &&    // index extended
@@ -235,17 +261,24 @@ function tick() {
     // Hand gestures — independent of the current effect
     if (gestureRecognizer) {
       const gr = gestureRecognizer.recognizeForVideo(video, now);
+      const named = (name) => gr.gestures?.filter(
+        (hand) => hand[0]?.categoryName === name && hand[0].score >= CONFIG.gestureMinScore
+      ).length || 0;
 
-      const isThumb = gr.gestures?.some(
-        (hand) => hand[0]?.categoryName === "Thumb_Up" && hand[0].score >= CONFIG.gestureMinScore
-      );
-      if (isThumb && !state.thumbActive) playApplause();  // rising edge
-      state.thumbActive = !!isThumb;
-
-      // Custom finger-gun gesture from the returned hand landmarks
+      const thumbsUp   = named("Thumb_Up");
+      const thumbsDown = named("Thumb_Down");
       const isGun = gr.landmarks?.some((lm) => lm?.length >= 21 && isFingerGun(lm));
-      if (isGun && !state.gunActive) playGunshot();       // rising edge
-      state.gunActive = !!isGun;
+
+      // Resolve to a single action (priority order)
+      let action = null;
+      if (thumbsUp >= 2)      action = "applause";
+      else if (thumbsUp === 1) action = "ding";
+      else if (thumbsDown >= 1) action = "boo";
+      else if (isGun)          action = "gun";
+
+      // Play once on the rising edge (when the action changes)
+      if (action && action !== state.lastAction) GESTURE_SOUNDS[action]();
+      state.lastAction = action;
     }
   }
 
