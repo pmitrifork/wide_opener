@@ -71,9 +71,9 @@ On phones/tablets, on-screen buttons appear instead: **FX** (effect), **BG**
 | **FULL BODY** | Body skeleton + face mesh together. |
 | **BODY MESH** | The *Wide Open* look — an organic Voronoi "3D-printed shell" mapped onto your whole body silhouette, with a boundary outline. Plays a clip on entry. |
 | **AFRO** | A big procedural afro anchored to your head. Plays a clip on entry. |
-| **DEVIL** | Devil horns on your head. Plays a clip on entry. |
-| **HALO** | A glowing golden halo floating above your head. Plays a clip on entry. |
-| **COWBOY** | A cowboy hat on your head. Plays a clip on entry — and **arms the gun gestures**. |
+| **DEVIL** | Devil horns on your head. Plays a clip on entry. **Try 🖕 a middle finger → thunder.** |
+| **HALO** | A glowing golden halo floating above your head. Plays a clip on entry. **Try 🫰 a two-hand heart → floating hearts.** |
+| **COWBOY** | A cowboy hat on your head. Plays a clip on entry, and **arms the gun gestures**: 👉 finger gun, ✌️ two-finger gun, or 👉👉 both hands → machine-gun. |
 
 Tip: switch the background to **black** (`B`) to make the glowing effects pop; in
 the head-overlay effects your face still shows through.
