@@ -246,11 +246,11 @@ function unlockAudio() {
 function isFingerGun(lm) {
   const W = lm[0];
   const d = (p) => Math.hypot(p.x - W.x, p.y - W.y); // distance from wrist
-  const extended = (tip, pip) => d(lm[tip]) > d(lm[pip]) * 1.0;
-  const folded   = (tip, pip) => d(lm[tip]) < d(lm[pip]);
+  const extended = (tip, pip) => d(lm[tip]) > d(lm[pip]) * 0.95;
+  const folded   = (tip, pip) => d(lm[tip]) < d(lm[pip]) * 1.05;
+  // Thumb intentionally not required — index out with the last three folded.
   return (
     extended(8, 6) &&    // index extended
-    extended(4, 3) &&    // thumb extended (cocked up)
     folded(12, 10) &&    // middle folded
     folded(16, 14) &&    // ring folded
     folded(20, 18)       // pinky folded
