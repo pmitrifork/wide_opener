@@ -193,6 +193,21 @@ function isFingerGun(lm) {
   );
 }
 
+// Validate a real thumbs-down: thumb extended AND pointing down, fingers
+// folded. Gates MediaPipe's loose Thumb_Down classification.
+function isThumbDown(lm) {
+  if (!lm || lm.length < 21) return false;
+  const W = lm[0];
+  const d = (p) => Math.hypot(p.x - W.x, p.y - W.y);
+  const folded = (tip, pip) => d(lm[tip]) < d(lm[pip]);
+  const thumbExtended  = d(lm[4]) > d(lm[2]);          // tip beyond the knuckle
+  const thumbPointsDown = lm[4].y > lm[2].y + 0.04;    // tip clearly below its base (y grows down)
+  return (
+    thumbExtended && thumbPointsDown &&
+    folded(8, 6) && folded(12, 10) && folded(16, 14) && folded(20, 18)
+  );
+}
+
 // ---------------------------------------------------------------------------
 //  Muzzle flash — a quick burst at the fingertip when the gun fires
 // ---------------------------------------------------------------------------
@@ -310,13 +325,20 @@ function tick() {
     // Hand gestures — independent of the current effect
     if (gestureRecognizer) {
       const gr = gestureRecognizer.recognizeForVideo(video, now);
-      const named = (name) => gr.gestures?.filter(
-        (hand) => hand[0]?.categoryName === name && hand[0].score >= CONFIG.gestureMinScore
-      ).length || 0;
+      // Pair each hand's gesture label with its landmarks (same index)
+      const hands = (gr.gestures || []).map((g, i) => ({
+        name:  g[0]?.categoryName,
+        score: g[0]?.score || 0,
+        lm:    gr.landmarks?.[i],
+      }));
+      const min = CONFIG.gestureMinScore;
 
-      const thumbsUp   = named("Thumb_Up");
-      const thumbsDown = named("Thumb_Down");
-      const gunHand = gr.landmarks?.find((lm) => lm?.length >= 21 && isFingerGun(lm));
+      const thumbsUp = hands.filter((hd) => hd.name === "Thumb_Up" && hd.score >= min).length;
+      // Thumb_Down must also pass the landmark check (extended + pointing down)
+      const thumbsDown = hands.filter(
+        (hd) => hd.name === "Thumb_Down" && hd.score >= min && isThumbDown(hd.lm)
+      ).length;
+      const gunHand = hands.find((hd) => hd.lm?.length >= 21 && isFingerGun(hd.lm))?.lm;
 
       // Resolve to a single action (priority order)
       let action = null;
