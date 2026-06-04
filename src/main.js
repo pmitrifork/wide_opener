@@ -142,25 +142,41 @@ async function initMediaPipe() {
 }
 
 // ---------------------------------------------------------------------------
-//  Gesture sounds
+//  Gesture sounds  —  all routed through Web Audio. iOS reliably plays clips
+//  via the AudioContext (unlocked on first tap) but is flaky unlocking many
+//  separate <audio> elements, so we decode the MP3s into buffers instead.
 // ---------------------------------------------------------------------------
-const sfxPool = [];           // every Audio element, for the iOS unlock pass
-function makeSfx(url) {
-  const a = new Audio(url);
-  a.preload = "auto";
-  sfxPool.push(a);
-  return () => { a.currentTime = 0; a.play().catch((e) => console.warn("audio blocked:", e)); };
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const buffers = {};   // url -> decoded AudioBuffer
+
+async function loadBuffer(url) {
+  try {
+    const res = await fetch(url);
+    buffers[url] = await audioCtx.decodeAudioData(await res.arrayBuffer());
+  } catch (e) {
+    console.warn("audio load failed:", url, e);
+  }
 }
-const playApplause = makeSfx("./applause.mp3");
-const playGunshot   = makeSfx("./gunshot.mp3");
-const playGunshot2  = makeSfx("./gunshot2.mp3");
+function makeSfx(url) {
+  loadBuffer(url);
+  return () => {
+    const b = buffers[url];
+    if (!b) return;
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const s = audioCtx.createBufferSource();
+    s.buffer = b;
+    s.connect(audioCtx.destination);
+    s.start();
+  };
+}
+const playApplause   = makeSfx("./applause.mp3");
+const playGunshot    = makeSfx("./gunshot.mp3");
+const playGunshot2   = makeSfx("./gunshot2.mp3");
 const playMachinegun = makeSfx("./machinegun.mp3");
-const playBoo       = makeSfx("./boo.mp3");
+const playBoo        = makeSfx("./boo.mp3");
 
 // Short synthesized "ding" for a single thumbs-up
-let audioCtx = null;
 function playDing() {
-  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === "suspended") audioCtx.resume();
   const t = audioCtx.currentTime;
   const o = audioCtx.createOscillator();
@@ -177,29 +193,20 @@ function playDing() {
 }
 
 const GESTURE_SOUNDS = {
-  applause: playApplause,
-  ding:     playDing,
-  boo:      playBoo,
+  applause:   playApplause,
+  ding:       playDing,
+  boo:        playBoo,
   gun:        playGunshot,
   gun2:       playGunshot2,
   machinegun: playMachinegun,
 };
 
-// iOS/Safari only allow audio that's started inside a user gesture. Our sounds
-// fire from gesture detection, so we "unlock" all clips on the first tap/key by
-// playing each muted-and-paused once; afterwards programmatic play() works.
-let audioUnlocked = false;
+// Resume the (initially suspended) AudioContext on the first user interaction.
 function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  for (const a of sfxPool) {
-    a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
-  }
-  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === "suspended") audioCtx.resume();
 }
 ["pointerdown", "touchstart", "keydown", "click"].forEach((ev) =>
-  window.addEventListener(ev, unlockAudio, { once: false })
+  window.addEventListener(ev, unlockAudio)
 );
 
 // Finger-gun detector from MediaPipe hand landmarks (21 pts per hand).
