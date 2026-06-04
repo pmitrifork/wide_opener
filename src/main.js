@@ -36,6 +36,7 @@ let state = {
   poseMiss: 0,           // consecutive video frames with no pose detected
   faceMiss: 0,           // consecutive video frames with no face detected
   lastAction: null,      // last gesture sound action played (rising-edge debounce)
+  muzzle: null,          // { x, y, angle, time } for the gun muzzle flash
 };
 let poseLandmarker = null;
 let faceLandmarker = null;
@@ -193,6 +194,54 @@ function isFingerGun(lm) {
 }
 
 // ---------------------------------------------------------------------------
+//  Muzzle flash — a quick burst at the fingertip when the gun fires
+// ---------------------------------------------------------------------------
+const MUZZLE_MS = 150;
+function drawMuzzleFlash(now) {
+  if (!state.muzzle) return;
+  const age = now - state.muzzle.time;
+  if (age > MUZZLE_MS) { state.muzzle = null; return; }
+
+  const p = 1 - age / MUZZLE_MS;            // 1 → 0 over the lifetime
+  const x = state.muzzle.x * canvas.width;
+  const y = state.muzzle.y * canvas.height;
+  const r = canvas.width * 0.05 * (0.6 + p * 0.7);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter"; // additive → bright burst
+
+  // Faint full-screen flash
+  ctx.fillStyle = `rgba(255, 240, 200, ${0.12 * p})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Radial burst at the muzzle
+  ctx.translate(x, y);
+  ctx.rotate(state.muzzle.angle);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+  g.addColorStop(0,   `rgba(255,255,235,${0.95 * p})`);
+  g.addColorStop(0.3, `rgba(255,200,90,${0.7 * p})`);
+  g.addColorStop(1,   "rgba(255,120,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // A few spikes for a star-burst look
+  ctx.fillStyle = `rgba(255,245,200,${0.85 * p})`;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    const lng = r * (1.8 + (i % 2));
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2);
+    ctx.lineTo(Math.cos(a) * lng, Math.sin(a) * lng);
+    ctx.lineTo(Math.cos(a + 0.18) * r * 0.18, Math.sin(a + 0.18) * r * 0.18);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
 //  3. Render loop
 // ---------------------------------------------------------------------------
 let frames = 0, fpsClock = performance.now();
@@ -267,17 +316,31 @@ function tick() {
 
       const thumbsUp   = named("Thumb_Up");
       const thumbsDown = named("Thumb_Down");
-      const isGun = gr.landmarks?.some((lm) => lm?.length >= 21 && isFingerGun(lm));
+      const gunHand = gr.landmarks?.find((lm) => lm?.length >= 21 && isFingerGun(lm));
 
       // Resolve to a single action (priority order)
       let action = null;
       if (thumbsUp >= 2)      action = "applause";
       else if (thumbsUp === 1) action = "ding";
       else if (thumbsDown >= 1) action = "boo";
-      else if (isGun)          action = "gun";
+      else if (gunHand)        action = "gun";
 
       // Play once on the rising edge (when the action changes)
-      if (action && action !== state.lastAction) GESTURE_SOUNDS[action]();
+      if (action && action !== state.lastAction) {
+        GESTURE_SOUNDS[action]();
+        if (action === "gun") {
+          // Muzzle just past the index fingertip, aimed along the finger
+          const tip = gunHand[8], mcp = gunHand[5];
+          let dx = tip.x - mcp.x, dy = tip.y - mcp.y;
+          const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+          state.muzzle = {
+            x: tip.x + dx * 0.03,
+            y: tip.y + dy * 0.03,
+            angle: Math.atan2(dy, dx),
+            time: now,
+          };
+        }
+      }
       state.lastAction = action;
     }
   }
@@ -301,6 +364,8 @@ function tick() {
   } catch (err) {
     console.error("effect draw error:", err);
   }
+
+  drawMuzzleFlash(now);   // on top of the effect, still inside the mirror frame
   ctx.restore();
 
   // Idle handling — hysteresis so the overlay doesn't flicker on the boundary:
