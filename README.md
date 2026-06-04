@@ -14,6 +14,15 @@ a dancer traced in a white 3D-printed Voronoi shell — is the visual north star
 
 ---
 
+## Try it live
+
+**https://pmitrifork.github.io/wide_opener/** — open on a phone (Safari/Chrome),
+allow the camera, tap once to enable sound.
+
+<img src="wideopener-qr.svg" alt="QR code to the live app" width="200" />
+
+---
+
 ## Run it (Windows, built-in webcam)
 
 You need a local web server — opening `index.html` as a `file://` will **not** work
