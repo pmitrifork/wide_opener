@@ -143,8 +143,11 @@ async function initMediaPipe() {
 // ---------------------------------------------------------------------------
 //  Gesture sounds
 // ---------------------------------------------------------------------------
+const sfxPool = [];           // every Audio element, for the iOS unlock pass
 function makeSfx(url) {
   const a = new Audio(url);
+  a.preload = "auto";
+  sfxPool.push(a);
   return () => { a.currentTime = 0; a.play().catch((e) => console.warn("audio blocked:", e)); };
 }
 const playApplause = makeSfx("./applause.mp3");
@@ -180,6 +183,23 @@ const GESTURE_SOUNDS = {
   gun2:       playGunshot2,
   machinegun: playMachinegun,
 };
+
+// iOS/Safari only allow audio that's started inside a user gesture. Our sounds
+// fire from gesture detection, so we "unlock" all clips on the first tap/key by
+// playing each muted-and-paused once; afterwards programmatic play() works.
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  for (const a of sfxPool) {
+    a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+  }
+  audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+["pointerdown", "touchstart", "keydown", "click"].forEach((ev) =>
+  window.addEventListener(ev, unlockAudio, { once: false })
+);
 
 // Finger-gun detector from MediaPipe hand landmarks (21 pts per hand).
 // Gun = index extended, thumb extended, middle/ring/pinky folded.
