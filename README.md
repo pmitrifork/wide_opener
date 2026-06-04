@@ -7,6 +7,10 @@ output fullscreen on a screen.
 Stack: plain HTML/JS + [`@mediapipe/tasks-vision`](https://www.npmjs.com/package/@mediapipe/tasks-vision)
 (Pose Landmarker + Face Landmarker). No build step, no framework.
 
+**Inspiration:** The Chemical Brothers — *Wide Open* (ft. Beck). The music-video look —
+a dancer traced in white line art against black — is the visual north star; see
+[`wideopen.png`](wideopen.png) for a reference still from that piece.
+
 ---
 
 ## Run it (Windows, built-in webcam)
