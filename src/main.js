@@ -148,9 +148,10 @@ function makeSfx(url) {
   return () => { a.currentTime = 0; a.play().catch((e) => console.warn("audio blocked:", e)); };
 }
 const playApplause = makeSfx("./applause.mp3");
-const playGunshot  = makeSfx("./gunshot.mp3");
-const playGunshot2 = makeSfx("./gunshot2.mp3");
-const playBoo      = makeSfx("./boo.mp3");
+const playGunshot   = makeSfx("./gunshot.mp3");
+const playGunshot2  = makeSfx("./gunshot2.mp3");
+const playMachinegun = makeSfx("./machinegun.mp3");
+const playBoo       = makeSfx("./boo.mp3");
 
 // Short synthesized "ding" for a single thumbs-up
 let audioCtx = null;
@@ -175,8 +176,9 @@ const GESTURE_SOUNDS = {
   applause: playApplause,
   ding:     playDing,
   boo:      playBoo,
-  gun:      playGunshot,
-  gun2:     playGunshot2,
+  gun:        playGunshot,
+  gun2:       playGunshot2,
+  machinegun: playMachinegun,
 };
 
 // Finger-gun detector from MediaPipe hand landmarks (21 pts per hand).
@@ -358,19 +360,27 @@ function tick() {
       // the single gun forbids — so they're mutually exclusive)
       const gun2Hand = hands.find((hd) => hd.lm?.length >= 21 && isDoubleGun(hd.lm))?.lm;
       const gunHand  = hands.find((hd) => hd.lm?.length >= 21 && isFingerGun(hd.lm))?.lm;
+      // How many hands are making any gun gesture
+      const gunHands = hands.filter(
+        (hd) => hd.lm?.length >= 21 && (isFingerGun(hd.lm) || isDoubleGun(hd.lm))
+      ).length;
 
       // Resolve to a single action (priority order)
       let action = null;
       if (thumbsUp >= 2)      action = "applause";
       else if (thumbsUp === 1) action = "ding";
       else if (thumbsDown >= 1) action = "boo";
+      else if (gunHands >= 2)  action = "machinegun";  // both hands = guns
       else if (gun2Hand)       action = "gun2";
       else if (gunHand)        action = "gun";
 
       // Play once on the rising edge (when the action changes)
       if (action && action !== state.lastAction) {
         GESTURE_SOUNDS[action]();
-        const aimHand = action === "gun" ? gunHand : action === "gun2" ? gun2Hand : null;
+        const aimHand =
+          action === "gun" ? gunHand :
+          action === "gun2" ? gun2Hand :
+          action === "machinegun" ? (gun2Hand || gunHand) : null;
         if (aimHand) {
           // Muzzle just past the index fingertip, aimed along the finger
           const tip = aimHand[8], mcp = aimHand[5];
