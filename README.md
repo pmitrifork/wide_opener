@@ -46,14 +46,55 @@ then the browser caches them). For a fully offline installation, see *Offline* b
 
 | Key | Action |
 |-----|--------|
-| `E` | cycle effect (skeleton ↔ face mesh) |
-| `B` | background: live video ↔ pure black |
+| `E` | cycle effect (see the list below) |
+| `B` | background: live video → black → custom image |
 | `M` | mirror (selfie flip) |
+| `C` | flip front / back camera |
 | `F` | fullscreen |
 | `H` | hide / show the HUD |
 
 The HUD bottom-left shows the active effect and live FPS. When nobody is in frame
 for ~1s, a **STEP INTO FRAME** idle prompt fades in.
+
+On phones/tablets, on-screen buttons appear instead: **FX** (effect), **BG**
+(background), **⇄** (mirror), **📷** (flip front/back camera), **⛶** (fullscreen),
+**HUD**.
+
+---
+
+## Effects — cycle with `E`
+
+| Effect | What it does |
+|--------|--------------|
+| **SKELETON** | Glowing neon skeletons — draws **every** detected person, each in its own colour. Best at a distance. |
+| **FACE MESH** | Classic dense white face mesh with accented eyes/lips. |
+| **FULL BODY** | Body skeleton + face mesh together. |
+| **BODY MESH** | The *Wide Open* look — an organic Voronoi "3D-printed shell" mapped onto your whole body silhouette, with a boundary outline. Plays a clip on entry. |
+| **AFRO** | A big procedural afro anchored to your head. Plays a clip on entry. |
+| **DEVIL** | Devil horns on your head. Plays a clip on entry. |
+| **HALO** | A glowing golden halo floating above your head. Plays a clip on entry. |
+| **COWBOY** | A cowboy hat on your head. Plays a clip on entry — and **arms the gun gestures**. |
+
+Tip: switch the background to **black** (`B`) to make the glowing effects pop; in
+the head-overlay effects your face still shows through.
+
+## Gestures — try these with your hands ✋
+
+Some work anywhere; others only in a specific effect.
+
+| Gesture | Result | Where |
+|---------|--------|-------|
+| 👍 **One thumb up** | a *ding* | any effect |
+| 👍👍 **Two thumbs up** | applause | any effect |
+| 👎 **Thumb down** | boo | any effect |
+| 👉 **Finger gun** (point) | gunshot + muzzle flash | **COWBOY** only |
+| ✌️ **Two-finger gun** (index + middle) | bigger gunshot | **COWBOY** only |
+| 👉👉 **Both hands as guns** | machine-gun | **COWBOY** only |
+| 🖕 **Middle finger** | thunder | **DEVIL** only |
+| 🫰 **Two-hand heart** | floating hearts | **HALO** only |
+
+Hold a gesture briefly for it to register (a short stability delay prevents
+accidental triggers). Sound needs one tap on the page first (mobile autoplay).
 
 ---
 
