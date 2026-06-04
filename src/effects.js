@@ -352,16 +352,29 @@ export function drawVoronoi(ctx, drawingUtils, result, deps) {
 //  buildBodyMesh() is called at detection time (consumes the mask immediately
 //  and renders to an offscreen canvas); drawBodyMesh() just blits that canvas.
 // ---------------------------------------------------------------------------
-const BODYMESH_CELLS = 24;   // approx number of cells across the mask width
 let _bodyCanvas = null;      // offscreen: the finished masked mesh
 let _maskCanvas = null;      // offscreen: silhouette alpha
 let _outlineCanvas = null;   // offscreen: silhouette boundary ring
 let _bodyReady  = false;
+let _bodyBox = null;         // smoothed body bounding box (mask px), for stable motion
 
 // Deterministic per-cell jitter (stable across frames → no shimmer)
 function _hash(a, b) {
   const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
   return s - Math.floor(s);
+}
+
+// A fixed, seeded grid of points in the body's normalised [0,1]×[0,1] frame.
+// Mapped onto the live body bounding box each frame, so the whole pattern
+// moves/scales with the person while staying internally stable (no popping).
+const BODY_COLS = 11, BODY_ROWS = 24;
+const BODY_POINTS = [];
+for (let r = 0; r < BODY_ROWS; r++) {
+  for (let c = 0; c < BODY_COLS; c++) {
+    const u = (c + 0.5) / BODY_COLS + (_hash(c, r) - 0.5) * 0.9 / BODY_COLS;
+    const v = (r + 0.5) / BODY_ROWS + (_hash(r, c) - 0.5) * 0.9 / BODY_ROWS;
+    BODY_POINTS.push([u, v]);
+  }
 }
 
 export function buildBodyMesh(mask, outW, outH) {
@@ -388,22 +401,42 @@ export function buildBodyMesh(mask, outW, outH) {
   }
   mctx.putImageData(id, 0, 0);
 
-  // Sample body points on a jittered grid (in output pixel space)
-  const sx = outW / mw, sy = outH / mh;
-  const step = Math.max(5, Math.floor(mw / BODYMESH_CELLS));
-  const pts = [];
-  for (let my = 0; my < mh; my += step) {
-    for (let mx = 0; mx < mw; mx += step) {
+  // Body bounding box from the silhouette (mask px), smoothed across frames
+  // so boundary noise doesn't make the pattern shake.
+  let minX = mw, minY = mh, maxX = 0, maxY = 0, any = false;
+  for (let my = 0; my < mh; my++) {
+    for (let mx = 0; mx < mw; mx++) {
       if (data[my * mw + mx] > 0.5) {
-        const jx = (_hash(mx, my) - 0.5) * step;
-        const jy = (_hash(my, mx) - 0.5) * step;
-        pts.push([(mx + jx) * sx, (my + jy) * sy]);
+        any = true;
+        if (mx < minX) minX = mx; if (mx > maxX) maxX = mx;
+        if (my < minY) minY = my; if (my > maxY) maxY = my;
       }
     }
   }
-
   const octx = _bodyCanvas.getContext("2d");
   octx.clearRect(0, 0, outW, outH);
+  if (!any || maxX - minX < 4 || maxY - minY < 4) { _bodyBox = null; return; }
+
+  const raw = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  if (!_bodyBox) _bodyBox = raw;
+  else {
+    const a = 0.35; // EMA: smooth box motion
+    _bodyBox = {
+      x: a * raw.x + (1 - a) * _bodyBox.x,
+      y: a * raw.y + (1 - a) * _bodyBox.y,
+      w: a * raw.w + (1 - a) * _bodyBox.w,
+      h: a * raw.h + (1 - a) * _bodyBox.h,
+    };
+  }
+  const bb = _bodyBox;
+
+  // Map the fixed normalised points onto the live (smoothed) body box, then to
+  // output pixels. Constant point count → pattern moves with the body, no pops.
+  const sx = outW / mw, sy = outH / mh;
+  const pts = BODY_POINTS.map(([u, v]) => [
+    (bb.x + u * bb.w) * sx,
+    (bb.y + v * bb.h) * sy,
+  ]);
   if (pts.length < 4) return;
 
   const delaunay = Delaunay.from(pts);
