@@ -57,6 +57,16 @@ let devilImgReady = false;
 devilImg.onload = () => { devilImgReady = devilImg.naturalWidth > 0; };
 devilImg.src = "./devil.png";
 
+// Cowboy hat overlay (black-cowboy-hat.png)
+//   HAT_SCALE : hat width as a multiple of face width (brim is wide)
+//   HAT_CY    : hat bottom relative to forehead (× face height, +down)
+const HAT_SCALE = 2.05;
+const HAT_CY    = 0.18;
+const hatImg = new Image();
+let hatImgReady = false;
+hatImg.onload = () => { hatImgReady = hatImg.naturalWidth > 0; };
+hatImg.src = "./black-cowboy-hat.png";
+
 // --- Halo / aureola (procedural golden glowing ring) -----------------------
 const HALO_RX    = 0.62;   // ring radius (× face width)
 const HALO_FLAT  = 0.30;   // vertical squash for perspective (ry / rx)
@@ -781,6 +791,39 @@ export function drawHalo(ctx, drawingUtils, result, deps) {
 }
 
 // ---------------------------------------------------------------------------
+//  COWBOY  — cowboy-hat image overlay anchored on each detected head.
+// ---------------------------------------------------------------------------
+export function drawCowboy(ctx, drawingUtils, result, deps) {
+  if (!result?.faceLandmarks?.length || !hatImgReady) return false;
+  const w = ctx.canvas.width, h = ctx.canvas.height;
+  const px = (lms, i) => [lms[i].x * w, lms[i].y * h];
+
+  for (const lms of result.faceLandmarks) {
+    const [rx, ry] = px(lms, 234);
+    const [lx, ly] = px(lms, 454);
+    const [fx, fy] = px(lms, 10);    // forehead — hat anchor
+    const [chx, chy] = px(lms, 152);
+    const [e1x, e1y] = px(lms, 33);
+    const [e2x, e2y] = px(lms, 263);
+
+    const fw = Math.hypot(lx - rx, ly - ry);
+    const fh = Math.hypot(chx - fx, chy - fy);
+    if (!(fw > 0)) continue;
+    const angle = Math.atan2(e2y - e1y, e2x - e1x);
+
+    const iw = fw * HAT_SCALE;
+    const ih = iw * (hatImg.naturalHeight / hatImg.naturalWidth);
+
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.rotate(angle);
+    ctx.drawImage(hatImg, -iw / 2, fh * HAT_CY - ih, iw, ih);
+    ctx.restore();
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 //  Registry. Each effect declares which detector it needs ('pose' | 'face' | 'both').
 // ---------------------------------------------------------------------------
 export const EFFECTS = {
@@ -791,4 +834,5 @@ export const EFFECTS = {
   afro:     { label: "AFRO",       detector: "face", draw: drawAfro, keepFace: true },
   devil:    { label: "DEVIL",      detector: "face", draw: drawDevil, keepFace: true },
   halo:     { label: "HALO",       detector: "face", draw: drawHalo,  keepFace: true },
+  cowboy:   { label: "COWBOY",     detector: "face", draw: drawCowboy, keepFace: true },
 };

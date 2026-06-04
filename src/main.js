@@ -178,11 +178,13 @@ const playMachinegun = makeSfx("./machinegun.mp3");
 const playBoo        = makeSfx("./boo.mp3");
 const playGetuppa    = makeSfx("./getuppa.mp3");
 const playAngel      = makeSfx("./angel.mp3");
+const playCowboy     = makeSfx("./cowboy.mp3");
 
 // Sounds played when switching into a particular effect
 const EFFECT_ENTER_SOUNDS = {
-  afro: playGetuppa,
-  halo: playAngel,
+  afro:   playGetuppa,
+  halo:   playAngel,
+  cowboy: playCowboy,
 };
 
 // Short synthesized "ding" for a single thumbs-up
@@ -409,14 +411,17 @@ function tick() {
         (hd) => hd.lm?.length >= 21 && (isFingerGun(hd.lm) || isDoubleGun(hd.lm))
       ).length;
 
+      // Gun gestures only fire in COWBOY mode (hat on)
+      const gunsArmed = state.effect === "cowboy";
+
       // Resolve to a single action (priority order)
       let action = null;
       if (thumbsUp >= 2)      action = "applause";
       else if (thumbsUp === 1) action = "ding";
       else if (thumbsDown >= 1) action = "boo";
-      else if (gunHands >= 2)  action = "machinegun";  // both hands = guns
-      else if (gun2Hand)       action = "gun2";
-      else if (gunHand)        action = "gun";
+      else if (gunsArmed && gunHands >= 2) action = "machinegun";  // both hands = guns
+      else if (gunsArmed && gun2Hand)      action = "gun2";
+      else if (gunsArmed && gunHand)       action = "gun";
 
       // Stability gate: a gesture must persist for a few consecutive frames
       // before it fires, so single-frame noise (e.g. as the model warms up or
